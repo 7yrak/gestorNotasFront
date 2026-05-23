@@ -1,0 +1,159 @@
+<div class="w-96 min-w-96 h-screen border-r flex flex-col select-none overflow-hidden" style="border-color: var(--app-border); background: var(--app-panel);">
+  <div class="px-4 py-4 border-b" style="border-color: var(--app-border);">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-[11px] uppercase tracking-[0.32em]" style="color: var(--app-muted);">Workspace</p>
+        <h1 class="mt-2 text-lg font-semibold" style="color: var(--app-text);">Tyrak Workspace</h1>
+        <p class="mt-1 text-sm leading-6" style="color: var(--app-text-soft);">
+          Organiza cuadernos, secciones y páginas con una vista clara y acciones directas.
+        </p>
+      </div>
+      <button
+        type="button"
+        (click)="toggleTheme()"
+        class="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition"
+        style="border-color: var(--app-border); color: var(--app-text); background: var(--app-panel-2);"
+        [title]="isDarkTheme ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+      >
+        {{ isDarkTheme ? '☀️ Claro' : '🌙 Oscuro' }}
+      </button>
+    </div>
+
+    <div class="mt-4 flex gap-2">
+      <button
+        type="button"
+        (click)="addNotebook()"
+        class="flex-1 rounded-xl px-3 py-2 text-sm font-semibold text-white transition"
+        style="background: linear-gradient(135deg, var(--app-accent), #6366f1);"
+      >
+        + Nuevo cuaderno
+      </button>
+      <div class="rounded-xl px-3 py-2 text-sm font-medium" style="background: var(--app-panel-2); color: var(--app-text-soft);">
+        {{ notebooks.length }} activos
+      </div>
+    </div>
+  </div>
+
+  <div class="px-4 py-3 border-b" style="border-color: var(--app-border);">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-[11px] uppercase tracking-[0.28em]" style="color: var(--app-muted);">Mis cuadernos</p>
+        <p class="mt-1 text-sm" style="color: var(--app-text-soft);">Selecciona, crea o elimina en cualquier nivel.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+    @for (notebook of notebooks; track notebook.notebookId) {
+      <div class="rounded-2xl border transition-all" style="border-color: var(--app-border); background: var(--app-panel-2);">
+        <div class="flex items-start justify-between gap-2 px-3 py-2">
+          <button
+            type="button"
+            (click)="toggleNotebook(notebook.notebookId)"
+            class="flex min-w-0 flex-1 items-start gap-2 text-left"
+          >
+            <span class="mt-0.5 text-xs" style="color: var(--app-muted);">{{ expandedNotebooks[notebook.notebookId] ? '▼' : '▶' }}</span>
+            <span class="mt-0.5 text-lg" [style.color]="notebook.color">📘</span>
+            <span class="break-words text-sm font-semibold leading-snug" style="color: var(--app-text);">{{ notebook.name }}</span>
+          </button>
+
+          <div class="flex shrink-0 items-center gap-1 pt-0.5">
+            <button
+              type="button"
+              (click)="addSection($event, notebook.notebookId)"
+              class="rounded-lg px-2 py-1 text-xs font-semibold transition"
+              style="background: var(--app-accent-soft); color: var(--app-text);"
+              title="Agregar sección"
+            >
+              + Sec
+            </button>
+            <button
+              type="button"
+              (click)="deleteNotebook(notebook)"
+              class="rounded-lg px-2 py-1 text-xs font-semibold transition"
+              style="background: var(--app-danger-soft); color: var(--app-danger);"
+              title="Eliminar cuaderno"
+              aria-label="Eliminar cuaderno"
+            >
+              🗑
+            </button>
+          </div>
+        </div>
+
+        @if (expandedNotebooks[notebook.notebookId]) {
+          <div class="px-3 pb-3">
+            <div class="ml-4 border-l pl-3" style="border-color: var(--app-border);">
+              @for (section of sectionsMap[notebook.notebookId]; track section.sectionId) {
+                <div class="rounded-xl border px-2 py-2 mt-2" style="border-color: var(--app-border); background: var(--app-panel);">
+                  <div class="flex items-start justify-between gap-2">
+                    <button
+                      type="button"
+                      (click)="toggleSection(section.sectionId)"
+                      class="flex min-w-0 flex-1 items-start gap-2 text-left"
+                    >
+                      <span class="mt-0.5 text-[10px]" style="color: var(--app-muted);">{{ expandedSections[section.sectionId] ? '▼' : '▶' }}</span>
+                      <span class="mt-0.5 text-base" [style.color]="section.color">🔸</span>
+                      <span class="break-words text-sm font-medium leading-snug" style="color: var(--app-text-soft);">{{ section.name }}</span>
+                    </button>
+
+                    <div class="flex shrink-0 items-center gap-1 pt-0.5">
+                      <button
+                        type="button"
+                        (click)="addPage($event, notebook, section)"
+                        class="rounded-lg px-2 py-1 text-[11px] font-semibold transition"
+                        style="background: var(--app-accent-soft); color: var(--app-text);"
+                        title="Agregar página"
+                      >
+                        + Pág
+                      </button>
+                      <button
+                        type="button"
+                        (click)="deleteSection($event, section)"
+                        class="rounded-lg px-2 py-1 text-[11px] font-semibold transition"
+                        style="background: var(--app-danger-soft); color: var(--app-danger);"
+                        title="Eliminar sección"
+                        aria-label="Eliminar sección"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+
+                  @if (expandedSections[section.sectionId]) {
+                    <div class="mt-2 pl-3 border-l" style="border-color: var(--app-border);">
+                      @for (page of pagesMap[section.sectionId]; track page.pageId) {
+                        <div class="mt-2">
+                          <div
+                            (click)="onSelectPage(page, section, notebook)"
+                            [class]="state.selectedPage()?.pageId === page.pageId ? 'selected-page-row' : ''"
+                            class="flex items-start justify-between gap-2 rounded-xl px-3 py-2 text-sm transition"
+                            style="background: var(--app-panel-2);"
+                          >
+                            <span class="flex min-w-0 items-start gap-2">
+                              <span class="mt-0.5 text-base">📄</span>
+                              <span class="break-words leading-snug" style="color: var(--app-text-soft);">{{ page.title || 'Sin título' }}</span>
+                            </span>
+                            <button
+                              type="button"
+                              (click)="deletePage($event, page)"
+                              class="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold transition"
+                              style="background: var(--app-danger-soft); color: var(--app-danger);"
+                              title="Eliminar página"
+                              aria-label="Eliminar página"
+                            >
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

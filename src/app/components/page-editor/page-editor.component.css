@@ -1,0 +1,7 @@
+/* CSS extra si es necesario para el contenteditable */
+[contenteditable]:empty:before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    pointer-events: none;
+    display: block; /* For Firefox */
+}

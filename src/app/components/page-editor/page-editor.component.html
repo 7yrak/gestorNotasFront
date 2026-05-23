@@ -1,0 +1,81 @@
+<div class="flex-1 h-screen bg-white overflow-y-auto flex justify-center">
+  @if (state.selectedPage(); as page) {
+    <div class="w-full px-6 py-8 md:px-10 lg:px-14 xl:px-20 flex flex-col space-y-6 animate-fade-in">
+      
+      <div class="text-sm text-slate-400 flex flex-wrap items-center gap-1.5 font-medium tracking-wide">
+        <span>📘 {{ state.selectedNotebook()?.name }}</span>
+        <span class="text-slate-300">/</span>
+        <span>🔸 {{ state.selectedSection()?.name }}</span>
+        <span class="text-slate-300">/</span>
+        <span class="text-slate-600 font-semibold break-words">📄 {{ page.title }}</span>
+      </div>
+
+      <h1 class="text-4xl md:text-5xl font-bold text-slate-800 focus:outline-none border-none tracking-tight py-1 break-words">
+        {{ page.title }}
+      </h1>
+
+      <div class="flex flex-col flex-1 pt-2">
+        <div class="flex flex-wrap justify-between items-center gap-3 mb-2">
+          <label class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Editor Enriquecido</label>
+          
+          @if (isSaving) {
+            <span class="text-sm text-amber-600 bg-amber-50 px-2 py-0.5 rounded animate-pulse border border-amber-200">
+              ⚡ Guardando...
+            </span>
+          } @else {
+            <span class="text-sm text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              ✓ Guardado
+            </span>
+          }
+        </div>
+
+        <!-- Barra de herramientas (Toolbar) -->
+        <div class="flex flex-wrap gap-2 mb-2 p-2 bg-slate-50 border border-slate-200 rounded-t-xl sticky top-0 z-10 shadow-sm">
+          <button (click)="execCmd('bold')" class="px-3 py-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100 font-bold" title="Negrita">N</button>
+          <button (click)="execCmd('italic')" class="px-3 py-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100 italic" title="Cursiva">K</button>
+          <button (click)="execCmd('underline')" class="px-3 py-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100 underline" title="Subrayado">S</button>
+          
+          <div class="w-px h-8 bg-slate-300 mx-1"></div>
+          
+          <button (click)="execCmd('insertUnorderedList')" class="px-3 py-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100" title="Lista con viñetas">• Lista</button>
+          <button (click)="execCmd('insertOrderedList')" class="px-3 py-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100" title="Lista numerada">1. Lista</button>
+
+          <div class="w-px h-8 bg-slate-300 mx-1"></div>
+
+          <button (click)="execCmd('justifyLeft')" class="px-3 py-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100" title="Alinear Izquierda">|←</button>
+          <button (click)="execCmd('justifyCenter')" class="px-3 py-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100" title="Centrar">→|←</button>
+          <button (click)="execCmd('justifyRight')" class="px-3 py-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100" title="Alinear Derecha">→|</button>
+          
+          <div class="w-px h-8 bg-slate-300 mx-1"></div>
+
+          <select (change)="execCmd('formatBlock', $any($event.target).value)" class="px-2 border border-slate-200 rounded bg-white text-sm outline-none">
+            <option value="p">Párrafo normal</option>
+            <option value="H1">Título 1</option>
+            <option value="H2">Título 2</option>
+            <option value="H3">Título 3</option>
+          </select>
+
+          <input type="color" (change)="execCmd('foreColor', $any($event.target).value)" class="w-8 h-8 rounded cursor-pointer border-0 p-0" title="Color del texto">
+        </div>
+
+        <!-- Content Editable Area -->
+        <div 
+          #editorRef
+          contenteditable="true"
+          data-placeholder="Escribe tus notas aquí... Usa la barra de herramientas superior para darle estilo."
+          (input)="onEditorInput()"
+          class="w-full flex-1 p-6 bg-white border border-slate-200 border-t-0 rounded-b-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-700 leading-relaxed text-base min-h-[500px] shadow-sm transition-all duration-200 prose prose-slate max-w-none"
+        ></div>
+      </div>
+
+    </div>
+  } @else {
+    <div class="flex flex-col items-center justify-center text-slate-400 space-y-3 select-none px-6">
+      <div class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center text-3xl shadow-sm">🗒️</div>
+      <div class="text-center">
+        <p class="font-medium text-slate-700 text-lg">Tu espacio de trabajo está listo</p>
+        <p class="text-sm text-slate-400 mt-2 max-w-sm">Selecciona una página existente o crea una nueva utilizando los botones <span class="font-bold text-slate-500">+ Pág</span> del menú lateral.</p>
+      </div>
+    </div>
+  }
+</div>
