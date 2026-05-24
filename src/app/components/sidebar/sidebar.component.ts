@@ -1,5 +1,6 @@
 import { Component, OnInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
 import { Notebook, Section, Page } from '../../models/types';
@@ -7,9 +8,9 @@ import { Notebook, Section, Page } from '../../models/types';
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
-    <aside class="w-80 h-screen flex flex-col bg-gray-50 dark:bg-gray-800/95 border-r border-gray-200 dark:border-gray-800 transition-colors shadow-sm shrink-0">
+    <aside class="w-96 h-screen flex flex-col bg-gray-50 dark:bg-gray-800/95 border-r border-gray-200 dark:border-gray-800 transition-colors shadow-sm shrink-0">
       <!-- Logo de la app y alternador de tema -->
       <div class="px-6 py-5 flex items-center justify-between border-b border-gray-200 dark:border-gray-800 shrink-0">
         <h1 class="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
@@ -110,6 +111,45 @@ import { Notebook, Section, Page } from '../../models/types';
           </div>
         </div>
       </div>
+
+      <!-- MODAL ELEGANTE PARA EDITAR/CREAR ELEMENTOS -->
+      <div *ngIf="isModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-gray-100 dark:border-gray-700">
+          
+          <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">{{ modalTitle }}</h3>
+            <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-md transition-colors outline-none" (click)="closeModal()">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="px-6 py-6">
+            <input 
+              type="text" 
+              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-800 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none" 
+              [placeholder]="modalPlaceholder" 
+              [(ngModel)]="modalValue"
+              (keyup.enter)="saveModal()"
+              autofocus
+            />
+          </div>
+
+          <div class="px-6 py-4 bg-gray-50 dark:bg-gray-800/80 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700">
+            <button 
+              class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200/70 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              (click)="closeModal()">
+              Cancelar
+            </button>
+            <button 
+              class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-lg shadow-sm transition-colors"
+              (click)="saveModal()">
+              Guardar
+            </button>
+          </div>
+        </div>
+      </div>
     </aside>
   `,
   styles: [`
@@ -131,6 +171,14 @@ export class SidebarComponent implements OnInit {
   // Variables Drag and Drop
   draggedItem: any = null;
   draggedType: 'notebook' | 'section' | 'page' | null = null;
+
+  // Variables Modal
+  isModalOpen = false;
+  modalTitle = '';
+  modalValue = '';
+  modalPlaceholder = '';
+  modalAction: 'create-notebook' | 'create-section' | 'create-page' | 'edit-notebook' | 'edit-section' | 'edit-page' | null = null;
+  modalContext: any = null;
 
   constructor(private api: ApiService, public state: StateService) {
     effect(() => {
@@ -192,91 +240,128 @@ export class SidebarComponent implements OnInit {
   }
 
   addNotebook() {
-    const name = prompt('Nombre del nuevo Cuaderno:');
-    if (!name) return;
-    this.api.createNotebook({
-      userId: this.api.getMockUserId(),
-      name,
-      color: '#4f46e5',
-      orderInUser: this.notebooks.length + 1
-    }).subscribe(() => this.state.triggerRefresh());
+    this.openModal('create-notebook', 'Nuevo Cuaderno', 'Nombre del cuaderno...', '');
   }
 
   addSection(event: Event, notebookId: string) {
     event.stopPropagation();
-    const name = prompt('Nombre de la nueva Sección:');
-    if (!name) return;
-    this.api.createSection({
-      notebookId,
-      name,
-      color: '#ef4444',
-      orderInParent: (this.sectionsMap[notebookId]?.length || 0) + 1
-    }).subscribe({
-      next: () => {
-        this.expandedNotebooks[notebookId] = true;
-        this.state.triggerRefresh();
-      },
-      error: (err) => {
-        alert('No se pudo crear la sección. Es posible que ya exista una con el mismo nombre.');
-        console.error(err);
-      }
-    });
+    this.openModal('create-section', 'Nueva Sección', 'Nombre de la sección...', '', { notebookId });
   }
 
   addPage(event: Event, notebook: Notebook, section: Section) {
     event.stopPropagation();
-    const title = prompt('Título de la nueva Página:');
-    if (!title) return;
-    this.api.createPage({
-      sectionId: section.sectionId,
-      title,
-      orderInSection: (this.pagesMap[section.sectionId]?.length || 0) + 1,
-      lastModifiedByUserId: this.api.getMockUserId(),
-      version: 1
-    }).subscribe({
-      next: (newPage) => {
-        this.expandedSections[section.sectionId] = true;
-        this.state.selectPage(newPage, section, notebook);
-        this.state.triggerRefresh();
-      },
-      error: (err) => {
-        alert('No se pudo crear la página.');
-        console.error(err);
-      }
-    });
+    this.openModal('create-page', 'Nueva Página', 'Título de la página...', '', { notebook, section });
   }
 
   // --- Acciones de Edición (Renombrar) ---
   editNotebook(event: Event, notebook: Notebook) {
     event.stopPropagation();
-    const newName = prompt('Editar nombre del Cuaderno:', notebook.name);
-    if (newName && newName.trim() !== '' && newName !== notebook.name) {
-      this.api.updateNotebook(notebook.notebookId, { name: newName }).subscribe(() => {
-        notebook.name = newName;
-        this.state.triggerRefresh();
-      });
-    }
+    this.openModal('edit-notebook', 'Renombrar Cuaderno', 'Nuevo nombre...', notebook.name, { notebook });
   }
 
   editSection(event: Event, section: Section) {
     event.stopPropagation();
-    const newName = prompt('Editar nombre de la Sección:', section.name);
-    if (newName && newName.trim() !== '' && newName !== section.name) {
-      this.api.updateSection(section.sectionId, { name: newName }).subscribe(() => {
-        section.name = newName;
-        this.state.triggerRefresh();
-      });
-    }
+    this.openModal('edit-section', 'Renombrar Sección', 'Nuevo nombre...', section.name, { section });
   }
 
   editPage(event: Event, page: Page) {
     event.stopPropagation();
-    const newTitle = prompt('Editar título de la Página:', page.title);
-    if (newTitle && newTitle.trim() !== '' && newTitle !== page.title) {
-      this.api.updatePage(page.pageId, { title: newTitle }).subscribe(() => {
-        page.title = newTitle;
-        this.state.triggerRefresh();
-      });
+    this.openModal('edit-page', 'Renombrar Página', 'Nuevo título...', page.title, { page });
+  }
+
+  // --- Lógica del Modal Elegante ---
+  openModal(action: any, title: string, placeholder: string, initialValue: string, context: any = null) {
+    this.modalAction = action;
+    this.modalTitle = title;
+    this.modalPlaceholder = placeholder;
+    this.modalValue = initialValue;
+    this.modalContext = context;
+    this.isModalOpen = true;
+  }
+
+  closeModal() {
+    this.isModalOpen = false;
+    this.modalValue = '';
+    this.modalContext = null;
+  }
+
+  saveModal() {
+    if (!this.modalValue || this.modalValue.trim() === '') return;
+    const val = this.modalValue.trim();
+
+    switch (this.modalAction) {
+      case 'create-notebook':
+        this.api.createNotebook({
+          userId: this.api.getMockUserId(),
+          name: val,
+          color: '#4f46e5',
+          orderInUser: this.notebooks.length + 1
+        }).subscribe(() => { this.state.triggerRefresh(); this.closeModal(); });
+        break;
+
+      case 'create-section':
+        this.api.createSection({
+          notebookId: this.modalContext.notebookId,
+          name: val,
+          color: '#ef4444',
+          orderInParent: (this.sectionsMap[this.modalContext.notebookId]?.length || 0) + 1
+        }).subscribe({
+          next: () => {
+            this.expandedNotebooks[this.modalContext.notebookId] = true;
+            this.state.triggerRefresh();
+            this.closeModal();
+          },
+          error: (err) => { alert('Error al crear sección.'); console.error(err); }
+        });
+        break;
+
+      case 'create-page':
+        this.api.createPage({
+          sectionId: this.modalContext.section.sectionId,
+          title: val,
+          orderInSection: (this.pagesMap[this.modalContext.section.sectionId]?.length || 0) + 1,
+          lastModifiedByUserId: this.api.getMockUserId(),
+          version: 1
+        }).subscribe({
+          next: (newPage) => {
+            this.expandedSections[this.modalContext.section.sectionId] = true;
+            this.state.selectPage(newPage, this.modalContext.section, this.modalContext.notebook);
+            this.state.triggerRefresh();
+            this.closeModal();
+          },
+          error: (err) => { alert('Error al crear página.'); console.error(err); }
+        });
+        break;
+
+      case 'edit-notebook':
+        if (val !== this.modalContext.notebook.name) {
+          this.api.updateNotebook(this.modalContext.notebook.notebookId, { name: val }).subscribe(() => {
+            this.modalContext.notebook.name = val;
+            this.state.triggerRefresh();
+            this.closeModal();
+          });
+        } else this.closeModal();
+        break;
+
+      case 'edit-section':
+        if (val !== this.modalContext.section.name) {
+          this.api.updateSection(this.modalContext.section.sectionId, { name: val }).subscribe(() => {
+            this.modalContext.section.name = val;
+            this.state.triggerRefresh();
+            this.closeModal();
+          });
+        } else this.closeModal();
+        break;
+
+      case 'edit-page':
+        if (val !== this.modalContext.page.title) {
+          this.api.updatePage(this.modalContext.page.pageId, { title: val }).subscribe(() => {
+            this.modalContext.page.title = val;
+            this.state.triggerRefresh();
+            this.closeModal();
+          });
+        } else this.closeModal();
+        break;
     }
   }
 
