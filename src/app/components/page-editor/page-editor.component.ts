@@ -34,17 +34,51 @@ import { debounceTime } from 'rxjs/operators';
       </header>
 
       <!-- Barra de herramientas (Rich Text) -->
-      <div class="flex items-center gap-1 px-8 py-2 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 shrink-0">
-        <button (click)="execCmd('bold')" class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold transition-colors" title="Negrita">B</button>
-        <button (click)="execCmd('italic')" class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 italic transition-colors" title="Cursiva">I</button>
-        <button (click)="execCmd('underline')" class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 underline transition-colors" title="Subrayado">U</button>
-        <div class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-2"></div>
-        <button (click)="execCmd('formatBlock', 'H1')" class="px-3 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm transition-colors" title="Título principal">H1</button>
-        <button (click)="execCmd('formatBlock', 'H2')" class="px-3 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm transition-colors" title="Subtítulo">H2</button>
-        <div class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-2"></div>
-        <button (click)="execCmd('insertUnorderedList')" class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-1 transition-colors" title="Lista de viñetas">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-        </button>
+      <div class="flex flex-wrap items-center gap-2 px-8 py-2 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 shrink-0">
+        
+        <!-- Formato Básico -->
+        <div class="flex border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+          <button (click)="execCmd('bold')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold border-r border-gray-200 dark:border-gray-700 transition-colors" title="Negrita">N</button>
+          <button (click)="execCmd('italic')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 italic border-r border-gray-200 dark:border-gray-700 transition-colors" title="Cursiva">K</button>
+          <button (click)="execCmd('underline')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 underline border-r border-gray-200 dark:border-gray-700 transition-colors" title="Subrayado">S</button>
+          <button (click)="execCmd('strikeThrough')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 line-through transition-colors" title="Tachado">T</button>
+        </div>
+        
+        <!-- Títulos y Bloques -->
+        <select (change)="execCmd('formatBlock', $any($event.target).value)" class="px-2 py-1 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm outline-none shadow-sm cursor-pointer">
+          <option value="p">Párrafo normal</option>
+          <option value="H1">Título 1</option>
+          <option value="H2">Título 2</option>
+          <option value="H3">Título 3</option>
+        </select>
+
+        <!-- Listas y Sangrías -->
+        <div class="flex border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900 overflow-hidden shadow-sm text-gray-700 dark:text-gray-300 text-sm">
+          <button (click)="execCmd('insertUnorderedList')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Viñetas">•</button>
+          <button (click)="execCmd('insertOrderedList')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Numeración">1.</button>
+          <button (click)="execCmd('outdent')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Reducir Sangría">⇤</button>
+          <button (click)="execCmd('indent')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Aumentar Sangría">⇥</button>
+        </div>
+
+        <!-- Insertables -->
+        <div class="flex border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900 overflow-hidden shadow-sm text-sm">
+          <button (click)="insertLink()" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Insertar Enlace">🔗</button>
+          <button (click)="insertImage()" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Insertar Imagen">🖼️</button>
+          <button (click)="insertTable()" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Insertar Tabla">📊</button>
+          <button (click)="execCmd('insertHorizontalRule')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300" title="Línea Horizontal">―</button>
+        </div>
+
+        <!-- Colores -->
+        <div class="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 shadow-sm">
+          <label class="text-[10px] text-gray-500 font-bold uppercase cursor-pointer" title="Color del texto">T</label>
+          <input type="color" (change)="execCmd('foreColor', $any($event.target).value)" class="w-5 h-5 rounded cursor-pointer border-0 p-0 bg-transparent" title="Color del texto">
+          <div class="w-px h-4 bg-gray-200 dark:bg-gray-700"></div>
+          <label class="text-[10px] text-gray-500 font-bold uppercase cursor-pointer" title="Color de fondo">F</label>
+          <input type="color" value="#ffffff" (change)="execCmd('hiliteColor', $any($event.target).value)" class="w-5 h-5 rounded cursor-pointer border-0 p-0 bg-transparent" title="Resaltador">
+        </div>
+
+        <!-- Limpiar -->
+        <button (click)="execCmd('removeFormat')" class="px-3 py-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm shadow-sm transition-colors" title="Limpiar Formato">🧹 Limpiar</button>
       </div>
 
       <!-- Lienzo del Editor -->
@@ -91,6 +125,14 @@ import { debounceTime } from 'rxjs/operators';
     ::ng-deep .editor-canvas b, ::ng-deep .editor-canvas strong { font-weight: 700; color: inherit; }
     ::ng-deep .editor-canvas i, ::ng-deep .editor-canvas em { font-style: italic; }
     ::ng-deep .editor-canvas u { text-decoration: underline; text-underline-offset: 4px; }
+    
+    /* Estilos para Tablas, Imágenes y Enlaces insertados */
+    ::ng-deep .editor-canvas table { width: 100%; border-collapse: collapse; margin: 1rem 0; border: 1px solid #cbd5e1; }
+    ::ng-deep .editor-canvas th, ::ng-deep .editor-canvas td { border: 1px solid #cbd5e1; padding: 0.5rem; text-align: left; }
+    ::ng-deep .editor-canvas th { background-color: #f8fafc; font-weight: bold; }
+    ::ng-deep .editor-canvas img { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1); }
+    ::ng-deep .editor-canvas a { color: #4f46e5; text-decoration: underline; text-underline-offset: 2px; }
+    ::ng-deep .editor-canvas hr { margin: 1.5rem 0; border-color: #e2e8f0; border-top-width: 2px; }
   `]
 })
 export class PageEditorComponent {
@@ -164,6 +206,42 @@ export class PageEditorComponent {
       this.editorRef.nativeElement.focus();
     }
     this.onEditorInput(); // Dispara el guardado
+  }
+
+  insertLink() {
+    const url = prompt('Ingresa la URL del enlace (ej: https://google.com):');
+    if (url) {
+      this.execCmd('createLink', url);
+    }
+  }
+
+  insertImage() {
+    const url = prompt('Ingresa la URL de la imagen:');
+    if (url) {
+      this.execCmd('insertImage', url);
+    }
+  }
+
+  insertTable() {
+    const rowsStr = prompt('Número de filas:', '3');
+    const colsStr = prompt('Número de columnas:', '3');
+    
+    const rows = parseInt(rowsStr || '3', 10);
+    const cols = parseInt(colsStr || '3', 10);
+
+    if (isNaN(rows) || isNaN(cols) || rows <= 0 || cols <= 0) return;
+
+    let tableHTML = '<table><tbody>';
+    for (let i = 0; i < rows; i++) {
+      tableHTML += '<tr>';
+      for (let j = 0; j < cols; j++) {
+        tableHTML += i === 0 ? '<th>Encabezado</th>' : '<td>Celda</td>';
+      }
+      tableHTML += '</tr>';
+    }
+    tableHTML += '</tbody></table><p><br></p>';
+
+    this.execCmd('insertHTML', tableHTML);
   }
 
   persistContentToPostgres(htmlContent: string) {
