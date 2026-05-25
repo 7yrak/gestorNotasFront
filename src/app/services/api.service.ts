@@ -9,7 +9,7 @@ import { Notebook, Section, Page, PageContentBlock } from '../models/types';
 })
 export class ApiService {
   // Configuración dinámica para que detecte la IP del servidor automáticamente
-  private baseUrl = `http://${window.location.hostname}:8081/api`;
+  private baseUrl = `http://${window.location.hostname}:8082/api`;
 
   constructor(private http: HttpClient) {}
 
