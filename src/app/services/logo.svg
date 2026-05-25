@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#4338ca" />
+    </linearGradient>
+    <linearGradient id="pageGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#f8fafc" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  
+  <!-- Fondo redondeado elegante -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  
+  <!-- Página trasera decorativa -->
+  <rect x="160" y="120" width="200" height="280" rx="16" fill="#818cf8" opacity="0.4" transform="rotate(8 256 256)" />
+  
+  <!-- Página principal de la nota -->
+  <rect x="146" y="116" width="220" height="280" rx="16" fill="url(#pageGradient)" filter="url(#shadow)" />
+  
+  <!-- Separador / Marca páginas -->
+  <path d="M 300 116 v 110 l -24 -18 l -24 18 v -110 z" fill="#f43f5e" />
+  
+  <!-- Elementos de contenido abstractos -->
+  <rect x="186" y="170" width="60" height="14" rx="6" fill="#4338ca" />
+  <rect x="186" y="210" width="140" height="12" rx="6" fill="#cbd5e1" />
+  <rect x="186" y="234" width="140" height="12" rx="6" fill="#cbd5e1" />
+  <rect x="186" y="258" width="100" height="12" rx="6" fill="#cbd5e1" />
+  <rect x="186" y="298" width="140" height="12" rx="6" fill="#e2e8f0" />
+  <rect x="186" y="322" width="120" height="12" rx="6" fill="#e2e8f0" />
+</svg>
