@@ -5,8 +5,7 @@ import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Highlight from '@tiptap/extension-highlight';
-import { TextStyle } from '@tiptap/extension-text-style';
-import Color from '@tiptap/extension-color';
+import { TextStyleKit } from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
@@ -48,13 +47,24 @@ interface SavePayload { pageId: string; html: string; text: string; immediate?: 
               <option value="paragraph">Texto</option><option value="heading-1">Título 1</option><option value="heading-2">Título 2</option><option value="heading-3">Título 3</option><option value="blockquote">Cita</option>
             </select>
           </div>
+          <div class="tool-group format-select font-family-select">
+            <select [value]="currentFontFamily" (change)="setFontFamily($any($event.target).value)" aria-label="Fuente">
+              <option value="">Fuente</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="'Trebuchet MS'">Trebuchet</option><option value="'Courier New'">Courier</option>
+            </select>
+          </div>
+          <div class="tool-group format-select font-size-select">
+            <select [value]="currentFontSize" (change)="setFontSize($any($event.target).value)" aria-label="Tamaño de fuente">
+              <option value="">Tamaño</option><option value="12px">12</option><option value="14px">14</option><option value="16px">16</option><option value="18px">18</option><option value="24px">24</option><option value="32px">32</option><option value="48px">48</option>
+            </select>
+          </div>
           <div class="tool-group">
             <button type="button" (click)="run('bold')" [class.active]="active('bold')" title="Negrita"><strong>B</strong></button>
             <button type="button" (click)="run('italic')" [class.active]="active('italic')" title="Cursiva"><em>I</em></button>
             <button type="button" (click)="run('underline')" [class.active]="active('underline')" title="Subrayado"><u>U</u></button>
             <button type="button" (click)="run('strike')" [class.active]="active('strike')" title="Tachado"><s>S</s></button>
-            <label class="color-tool" title="Color del texto"><span>A</span><input type="color" value="#143c43" (input)="setColor($any($event.target).value)"></label>
-            <button type="button" (click)="run('highlight')" [class.active]="active('highlight')" title="Resaltar">▰</button>
+            <label class="color-tool" title="Color del texto"><span>A</span><input type="color" [value]="currentColor" (input)="setColor($any($event.target).value)" aria-label="Color del texto"></label>
+            <label class="color-tool highlight-tool" title="Color de resaltado"><span>▰</span><input type="color" [value]="currentHighlight" (input)="setHighlight($any($event.target).value)" aria-label="Color de resaltado"></label>
+            <button type="button" (click)="clearFormatting()" title="Borrar formato">Tx</button>
           </div>
           <div class="tool-group">
             <button type="button" (click)="run('bulletList')" [class.active]="active('bulletList')" title="Lista con viñetas">•≡</button>
@@ -65,15 +75,27 @@ interface SavePayload { pageId: string; html: string; text: string; immediate?: 
             <button type="button" (click)="setAlign('left')" [class.active]="active({ textAlign: 'left' })" title="Alinear izquierda">≡</button>
             <button type="button" (click)="setAlign('center')" [class.active]="active({ textAlign: 'center' })" title="Centrar">≣</button>
             <button type="button" (click)="setAlign('right')" [class.active]="active({ textAlign: 'right' })" title="Alinear derecha">≡</button>
+            <button type="button" (click)="outdent()" [disabled]="!canOutdent" title="Disminuir sangría">⇤</button>
+            <button type="button" (click)="indent()" [disabled]="!canIndent" title="Aumentar sangría">⇥</button>
           </div>
           <div class="tool-group">
             <button type="button" (click)="setLink()" [class.active]="active('link')" title="Insertar enlace">↗</button>
-            <button type="button" (click)="addImage()" title="Insertar imagen">▧</button>
+            <button type="button" (click)="imageInput.click()" title="Insertar imagen desde el dispositivo">▧</button>
+            <button type="button" (click)="addImageFromUrl()" title="Insertar imagen desde una dirección web">🌐</button>
             <button type="button" (click)="addTable()" title="Insertar tabla">▦</button>
             <button type="button" (click)="run('codeBlock')" [class.active]="active('codeBlock')" title="Bloque de código">&lt;/&gt;</button>
             <button type="button" (click)="run('horizontalRule')" title="Separador">―</button>
           </div>
+          <div class="tool-group table-tools" *ngIf="active('table')" aria-label="Editar tabla">
+            <button type="button" (click)="tableCommand('addColumnAfter')" title="Agregar columna">+Col</button>
+            <button type="button" (click)="tableCommand('deleteColumn')" title="Eliminar columna">−Col</button>
+            <button type="button" (click)="tableCommand('addRowAfter')" title="Agregar fila">+Fila</button>
+            <button type="button" (click)="tableCommand('deleteRow')" title="Eliminar fila">−Fila</button>
+            <button type="button" (click)="tableCommand('mergeOrSplit')" title="Combinar o dividir celdas">Celdas</button>
+            <button type="button" class="danger-tool" (click)="tableCommand('deleteTable')" title="Eliminar tabla">× Tabla</button>
+          </div>
         </div>
+        <input #imageInput class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp,image/gif" (change)="addImageFile($event)">
       </div>
 
       <main class="document-scroll">
@@ -131,6 +153,7 @@ export class PageEditorComponent implements OnDestroy {
   saveStatus = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
   isLoading = signal(false);
   loadError = signal('');
+  toolbarRevision = signal(0);
   words = 0;
   characters = 0;
   private requestedPageId = '';
@@ -186,10 +209,13 @@ export class PageEditorComponent implements OnDestroy {
       element,
       extensions: [
         StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
-        Image.configure({ allowBase64: false, inline: false }),
+        Image.configure({
+          allowBase64: true,
+          inline: false,
+          resize: { enabled: true, directions: ['top-left', 'top-right', 'bottom-left', 'bottom-right'], minWidth: 80, minHeight: 50, alwaysPreserveAspectRatio: true }
+        }),
         Highlight.configure({ multicolor: true }),
-        TextStyle,
-        Color,
+        TextStyleKit,
         TextAlign.configure({ types: ['heading', 'paragraph'] }),
         Placeholder.configure({ placeholder: 'Empieza a escribir. Usa “/” para pensar en bloques, o simplemente deja fluir la idea…' }),
         TaskList,
@@ -199,6 +225,11 @@ export class PageEditorComponent implements OnDestroy {
       editorProps: {
         attributes: { class: 'note-editor', spellcheck: 'true', 'aria-label': 'Contenido de la nota' },
         handleKeyDown: (_view, event) => {
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+            event.preventDefault();
+            this.setLink();
+            return true;
+          }
           if (event.key === 'Enter') this.saveNextUpdateImmediately = true;
           return false;
         }
@@ -213,7 +244,9 @@ export class PageEditorComponent implements OnDestroy {
           this.saveSubject.next({ pageId, html: editor.getHTML(), text: editor.getText(), immediate });
         }
       },
-      onSelectionUpdate: () => { /* Forces toolbar bindings to be rechecked. */ }
+      onSelectionUpdate: () => this.refreshToolbar(),
+      onTransaction: () => this.refreshToolbar(),
+      onFocus: () => this.refreshToolbar()
     });
     const pageId = this.state.selectedPage()?.pageId;
     if (pageId) this.loadPage(pageId, true);
@@ -229,6 +262,10 @@ export class PageEditorComponent implements OnDestroy {
     if (this.active('blockquote')) return 'blockquote';
     return 'paragraph';
   }
+  get currentFontFamily() { this.toolbarRevision(); return this.editor?.getAttributes('textStyle')['fontFamily'] || ''; }
+  get currentFontSize() { this.toolbarRevision(); return this.editor?.getAttributes('textStyle')['fontSize'] || ''; }
+  get currentColor() { this.toolbarRevision(); return this.editor?.getAttributes('textStyle')['color'] || '#143c43'; }
+  get currentHighlight() { this.toolbarRevision(); return this.editor?.getAttributes('highlight')['color'] || '#f6d88b'; }
 
   loadPage(pageId: string, force = false) {
     if (!this.editor) { this.requestedPageId = ''; return; }
@@ -263,11 +300,13 @@ export class PageEditorComponent implements OnDestroy {
   }
 
   active(nameOrAttrs: string | Record<string, unknown>, attrs: Record<string, unknown> = {}) {
+    this.toolbarRevision();
     if (!this.editor) return false;
     return typeof nameOrAttrs === 'string' ? this.editor.isActive(nameOrAttrs, attrs) : this.editor.isActive(nameOrAttrs);
   }
 
   canRun(command: 'undo' | 'redo') {
+    this.toolbarRevision();
     if (!this.editor) return false;
     return command === 'undo' ? this.editor.can().undo() : this.editor.can().redo();
   }
@@ -278,7 +317,7 @@ export class PageEditorComponent implements OnDestroy {
     const actions: Record<string, () => void> = {
       undo: () => chain.undo().run(), redo: () => chain.redo().run(), bold: () => chain.toggleBold().run(),
       italic: () => chain.toggleItalic().run(), underline: () => chain.toggleUnderline().run(), strike: () => chain.toggleStrike().run(),
-      highlight: () => chain.toggleHighlight({ color: '#f6d88b' }).run(), bulletList: () => chain.toggleBulletList().run(),
+      bulletList: () => chain.toggleBulletList().run(),
       orderedList: () => chain.toggleOrderedList().run(), taskList: () => chain.toggleTaskList().run(),
       codeBlock: () => chain.toggleCodeBlock().run(), horizontalRule: () => chain.setHorizontalRule().run()
     };
@@ -294,6 +333,39 @@ export class PageEditorComponent implements OnDestroy {
   }
   setAlign(alignment: 'left' | 'center' | 'right') { this.editor?.chain().focus().setTextAlign(alignment).run(); }
   setColor(color: string) { this.editor?.chain().focus().setColor(color).run(); }
+  setHighlight(color: string) { this.editor?.chain().focus().toggleHighlight({ color }).run(); }
+  setFontFamily(fontFamily: string) {
+    const chain = this.editor?.chain().focus();
+    if (!chain) return;
+    fontFamily ? chain.setFontFamily(fontFamily).run() : chain.unsetFontFamily().run();
+  }
+  setFontSize(fontSize: string) {
+    const chain = this.editor?.chain().focus();
+    if (!chain) return;
+    fontSize ? chain.setFontSize(fontSize).run() : chain.unsetFontSize().run();
+  }
+  clearFormatting() { this.editor?.chain().focus().unsetAllMarks().clearNodes().run(); }
+
+  get canIndent() {
+    this.toolbarRevision();
+    if (!this.editor) return false;
+    const item = this.active('taskItem') ? 'taskItem' : 'listItem';
+    return (this.active('taskItem') || this.active('listItem')) && this.editor.can().sinkListItem(item);
+  }
+  get canOutdent() {
+    this.toolbarRevision();
+    if (!this.editor) return false;
+    const item = this.active('taskItem') ? 'taskItem' : 'listItem';
+    return (this.active('taskItem') || this.active('listItem')) && this.editor.can().liftListItem(item);
+  }
+  indent() {
+    if (!this.editor) return;
+    this.editor.chain().focus().sinkListItem(this.active('taskItem') ? 'taskItem' : 'listItem').run();
+  }
+  outdent() {
+    if (!this.editor) return;
+    this.editor.chain().focus().liftListItem(this.active('taskItem') ? 'taskItem' : 'listItem').run();
+  }
 
   setLink() {
     if (!this.editor) return;
@@ -305,13 +377,34 @@ export class PageEditorComponent implements OnDestroy {
     if (!href) { alert('Usa una dirección http(s) o mailto válida.'); return; }
     this.editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
   }
-  addImage() {
+  addImageFromUrl() {
     const raw = prompt('Dirección pública de la imagen (https://)');
     const src = raw ? this.safeUrl(raw, false) : null;
     if (src) this.editor?.chain().focus().setImage({ src }).run();
     else if (raw) alert('La imagen debe usar una dirección http(s) válida.');
   }
+  addImageFile(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('Selecciona un archivo de imagen válido.'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert('La imagen no puede superar los 5 MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') this.editor?.chain().focus().setImage({ src: reader.result, alt: file.name }).run();
+    };
+    reader.onerror = () => alert('No fue posible leer la imagen.');
+    reader.readAsDataURL(file);
+  }
   addTable() { this.editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }
+  tableCommand(command: 'addColumnAfter' | 'deleteColumn' | 'addRowAfter' | 'deleteRow' | 'mergeOrSplit' | 'deleteTable') {
+    if (!this.editor) return;
+    const chain: any = this.editor.chain().focus();
+    chain[command]().run();
+  }
+
+  private refreshToolbar() { this.toolbarRevision.update(value => value + 1); }
 
   onTitleChange(title: string) {
     const page = this.state.selectedPage();
