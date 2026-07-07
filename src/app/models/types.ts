@@ -71,3 +71,12 @@ export interface Resource {
   storagePath: string;
   createdAt?: string;
 }
+
+export interface BackupImportResult {
+  notebooks: number;
+  sections: number;
+  pages: number;
+  contentBlocks: number;
+  tags: number;
+  resources: number;
+}

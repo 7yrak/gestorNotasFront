@@ -102,10 +102,18 @@ type ModalAction = 'create-notebook' | 'create-section' | 'create-page' |
       </div>
 
       <div class="backup-panel">
-        <button type="button" class="backup-button" (click)="exportBackup()" [disabled]="isExporting() || isLoading()">
-          <span class="backup-icon" aria-hidden="true">↓</span>
-          <span><strong>{{ isExporting() ? 'Preparando respaldo…' : 'Exportar respaldo' }}</strong><small>{{ exportStatus() || 'Cuadernos, páginas y contenido' }}</small></span>
-        </button>
+        <div class="backup-actions">
+          <button type="button" class="backup-button" (click)="exportBackup()" [disabled]="backupBusy || isLoading()">
+            <span class="backup-icon" aria-hidden="true">↓</span>
+            <span><strong>{{ isExporting() ? 'Preparando…' : 'Exportar' }}</strong><small>Guardar JSON</small></span>
+          </button>
+          <button type="button" class="backup-button restore-button" (click)="backupInput.click()" [disabled]="backupBusy">
+            <span class="backup-icon" aria-hidden="true">↑</span>
+            <span><strong>{{ isRestoring() ? 'Restaurando…' : 'Cargar' }}</strong><small>Recuperar JSON</small></span>
+          </button>
+        </div>
+        <p class="backup-status" *ngIf="exportStatus()">{{ exportStatus() }}</p>
+        <input #backupInput class="backup-input" type="file" accept="application/json,.json" (change)="restoreBackupFile($event)">
       </div>
 
       <footer class="sidebar-footer">
@@ -143,6 +151,7 @@ export class SidebarComponent implements OnInit {
   loadError = signal('');
   treeRevision = signal(0);
   isExporting = signal(false);
+  isRestoring = signal(false);
   exportStatus = signal('');
   isDarkTheme = false;
 
@@ -190,6 +199,7 @@ export class SidebarComponent implements OnInit {
   }
 
   get totalPages() { return Object.values(this.pagesMap).reduce((sum, pages) => sum + pages.length, 0); }
+  get backupBusy() { return this.isExporting() || this.isRestoring(); }
   get isEditAction() { return !!this.modalAction?.startsWith('edit-'); }
   get filteredNotebooks() { return this.notebooks.filter(book => this.matchesNotebook(book)); }
 
@@ -422,5 +432,41 @@ export class SidebarComponent implements OnInit {
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async restoreBackupFile(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || this.backupBusy) return;
+
+    if (file.size > 100 * 1024 * 1024) {
+      this.exportStatus.set('El respaldo supera el límite de 100 MB.');
+      return;
+    }
+
+    try {
+      const backup = JSON.parse(await file.text());
+      if (backup?.format !== 'margen-backup' || backup?.version !== 1 || !Array.isArray(backup?.notebooks)) {
+        this.exportStatus.set('El archivo no es un respaldo válido de Margen.');
+        return;
+      }
+
+      const summary = backup.summary || {};
+      const description = `${summary.notebooks ?? backup.notebooks.length} cuadernos, ${summary.sections ?? 0} secciones y ${summary.pages ?? 0} páginas`;
+      if (!confirm(`Se recuperarán ${description}.\n\nSe agregarán como copias nuevas y no se borrará información actual. ¿Continuar?`)) return;
+
+      this.isRestoring.set(true);
+      this.exportStatus.set('Restaurando el respaldo…');
+      const result = await firstValueFrom(this.api.importBackup(backup));
+      this.state.clearSelection();
+      this.state.triggerRefresh();
+      this.exportStatus.set(`Recuperado: ${result.notebooks} cuadernos, ${result.sections} secciones y ${result.pages} páginas.`);
+    } catch (error: any) {
+      console.error('No se pudo cargar el respaldo:', error);
+      this.exportStatus.set(error?.message || 'No se pudo recuperar el respaldo.');
+    } finally {
+      this.isRestoring.set(false);
+    }
   }
 }

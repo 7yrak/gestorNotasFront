@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { Notebook, Section, Page, PageContentBlock, Resource, SectionGroup, Tag } from '../models/types';
+import { BackupImportResult, Notebook, Section, Page, PageContentBlock, Resource, SectionGroup, Tag } from '../models/types';
 
 @Injectable({
   providedIn: 'root'
@@ -131,5 +131,12 @@ export class ApiService {
 
   getResources(): Observable<Resource[]> {
     return this.http.get<Resource[]>(`${this.baseUrl}/resources`);
+  }
+
+  importBackup(backup: object): Observable<BackupImportResult> {
+    return this.http.post<BackupImportResult>(
+      `${this.baseUrl}/backups/import/${this.getMockUserId()}`,
+      backup
+    ).pipe(catchError(this.handleError));
   }
 }
