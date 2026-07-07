@@ -43,7 +43,11 @@ html.theme-dark {
 
 html, body { width: 100%; min-height: 100%; margin: 0; }
 
+html { overflow: hidden; }
+
 body {
+  min-height: 100dvh;
+  overflow: hidden;
   color: var(--ink);
   background-color: var(--canvas);
   background-image:
@@ -69,10 +73,13 @@ app-page-editor { display: block; flex: 1 1 auto; min-width: 0; height: 100%; }
 ::selection { color: var(--ink); background: var(--accent-soft); }
 
 @media (max-width: 899px) {
+  :root { --sidebar-width: 340px; }
+
   app-sidebar {
     position: fixed;
     inset: 0 auto 0 0;
-    width: min(88vw, var(--sidebar-width));
+    width: min(92vw, var(--sidebar-width));
+    padding-left: env(safe-area-inset-left);
     transform: translateX(-105%);
     transition: transform 240ms cubic-bezier(.2,.8,.2,1);
   }
@@ -85,7 +92,12 @@ app-page-editor { display: block; flex: 1 1 auto; min-width: 0; height: 100%; }
     border: 0;
     background: rgba(12, 31, 34, 0.42);
     backdrop-filter: blur(3px);
+    -webkit-tap-highlight-color: transparent;
   }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
+  :root { --sidebar-width: 280px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

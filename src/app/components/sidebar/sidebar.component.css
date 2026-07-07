@@ -1,5 +1,5 @@
 :host { display: block; height: 100%; }
-.sidebar { height: 100%; display: flex; flex-direction: column; color: var(--ink); background: color-mix(in srgb, var(--panel) 94%, transparent); border-right: 1px solid var(--line); box-shadow: 8px 0 30px rgba(35,53,52,.04); backdrop-filter: blur(16px); }
+.sidebar { width: 100%; height: 100%; display: flex; flex-direction: column; color: var(--ink); background: color-mix(in srgb, var(--panel) 94%, transparent); border-right: 1px solid var(--line); box-shadow: 8px 0 30px rgba(35,53,52,.04); backdrop-filter: blur(16px); }
 .brand { min-height: 86px; padding: 20px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
 .brand-mark { width: 38px; height: 42px; padding: 8px 7px; display: grid; gap: 4px; border-radius: 4px 10px 10px 4px; background: var(--ink); box-shadow: -4px 0 0 var(--accent); transform: rotate(-2deg); }
 .brand-mark span { height: 2px; margin-top: 3px; background: var(--panel); opacity: .85; }
@@ -70,4 +70,28 @@
 .modal-actions button { padding: 9px 13px; border: 0; border-radius: 9px; cursor: pointer; font-size: 12px; font-weight: 800; }
 .modal-actions .ghost { color: var(--ink-soft); background: var(--teal-soft); }.modal-actions .danger { margin-right: auto; color: var(--danger); background: transparent; }.modal-actions .primary { color: white; background: var(--accent); }.modal-actions .primary:disabled { opacity: .5; cursor: default; }
 @keyframes spin { to { transform: rotate(360deg); } } @keyframes reveal { from { opacity: 0; transform: translateY(8px) scale(.98); } }
-@media (max-width:899px) { .mobile-close { display: grid; } }
+@media (hover: none), (pointer: coarse) {
+  .tree-row .row-actions { display: flex; }
+  .page-row i { display: block; }
+  .row-actions button, .page-row i { min-width: 32px; min-height: 32px; place-content: center; }
+}
+
+@media (max-width:899px) {
+  .sidebar { padding-bottom: env(safe-area-inset-bottom); box-shadow: 16px 0 50px rgba(12,31,34,.22); }
+  .brand { min-height: 74px; padding: 14px 16px; }
+  .mobile-close { display: grid; width: 40px; height: 40px; }
+  .search-wrap { padding-top: 12px; }
+  .search-box, .modal input { font-size: 16px; }
+  .tree-row { min-height: 44px; }
+  .page-row { min-height: 42px; }
+  .sidebar-footer { min-height: 64px; }
+}
+
+@media (max-width:420px) {
+  .branch { margin-left: 10px; padding-left: 4px; }
+  .pages { margin-left: 17px; }
+  .tree { padding-inline: 6px; }
+  .modal-backdrop { align-items: end; padding: 10px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .modal { padding: 22px 18px; border-radius: 18px 18px 8px 8px; }
+  .modal-actions { flex-wrap: wrap; }
+}
