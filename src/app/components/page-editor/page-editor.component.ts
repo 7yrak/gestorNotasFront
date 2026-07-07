@@ -1,276 +1,347 @@
-import { Component, effect, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component, ElementRef, OnDestroy, ViewChild, effect, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { StateService } from '../../services/state.service';
+import { Editor } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import Image from '@tiptap/extension-image';
+import Highlight from '@tiptap/extension-highlight';
+import { TextStyle } from '@tiptap/extension-text-style';
+import Color from '@tiptap/extension-color';
+import TextAlign from '@tiptap/extension-text-align';
+import Placeholder from '@tiptap/extension-placeholder';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import { TableKit } from '@tiptap/extension-table';
+import { Subject, of, timer } from 'rxjs';
+import { catchError, concatMap, debounce, debounceTime, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { ApiService } from '../../services/api.service';
-import { Subject } from 'rxjs';
-import { debounceTime } from 'rxjs/operators';
+import { StateService } from '../../services/state.service';
+
+interface SavePayload { pageId: string; html: string; text: string; immediate?: boolean; }
 
 @Component({
   selector: 'app-page-editor',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div *ngIf="state.selectedPage() as page; else noPage" class="flex flex-col h-screen w-full bg-white dark:bg-gray-900 transition-colors duration-300">
-      <!-- Encabezado (Breadcrumbs y Estado) -->
-      <header class="flex items-center justify-between px-8 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
-        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
-          <span class="font-medium text-indigo-600 dark:text-indigo-400">{{ state.selectedNotebook()?.name }}</span>
-          <span class="mx-2 text-gray-300 dark:text-gray-600">/</span>
-          <span class="font-medium">{{ state.selectedSection()?.name }}</span>
-          <span class="mx-2 text-gray-300 dark:text-gray-600">/</span>
-          <span class="font-bold text-gray-800 dark:text-gray-100 text-lg ml-2">{{ page.title }}</span>
-        </div>
-        <div class="flex items-center h-6">
-          <span *ngIf="isSaving" class="text-xs font-medium text-amber-600 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400 px-3 py-1 rounded-full animate-pulse flex items-center gap-1">
-            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            Guardando...
-          </span>
-          <span *ngIf="!isSaving && editorText" class="text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400 px-3 py-1 rounded-full flex items-center gap-1">
-            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            Guardado
-          </span>
+    <div class="workspace" *ngIf="state.selectedPage() as page; else welcome">
+      <header class="topbar">
+        <button class="menu-button" type="button" (click)="state.toggleSidebar()" aria-label="Abrir biblioteca">
+          <span></span><span></span><span></span>
+        </button>
+        <nav aria-label="Ruta de la página">
+          <span>{{ state.selectedNotebook()?.name }}</span><b>/</b><span>{{ state.selectedSection()?.name }}</span>
+        </nav>
+        <div class="sync-state" [attr.data-status]="saveStatus()">
+          <i></i><span>{{ saveLabel }}</span>
         </div>
       </header>
 
-      <!-- Barra de herramientas (Rich Text) -->
-      <div class="flex flex-wrap items-center gap-2 px-8 py-2 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 shrink-0">
-        
-        <!-- Formato Básico -->
-        <div class="flex border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
-          <button (click)="execCmd('bold')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold border-r border-gray-200 dark:border-gray-700 transition-colors" title="Negrita">N</button>
-          <button (click)="execCmd('italic')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 italic border-r border-gray-200 dark:border-gray-700 transition-colors" title="Cursiva">K</button>
-          <button (click)="execCmd('underline')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 underline border-r border-gray-200 dark:border-gray-700 transition-colors" title="Subrayado">S</button>
-          <button (click)="execCmd('strikeThrough')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 line-through transition-colors" title="Tachado">T</button>
-        </div>
-        
-        <!-- Títulos y Bloques -->
-        <select (change)="execCmd('formatBlock', $any($event.target).value)" class="px-2 py-1 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm outline-none shadow-sm cursor-pointer">
-          <option value="p">Párrafo normal</option>
-          <option value="H1">Título 1</option>
-          <option value="H2">Título 2</option>
-          <option value="H3">Título 3</option>
-        </select>
-
-        <!-- Listas y Sangrías -->
-        <div class="flex border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900 overflow-hidden shadow-sm text-gray-700 dark:text-gray-300 text-sm">
-          <button (click)="execCmd('insertUnorderedList')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Viñetas">•</button>
-          <button (click)="execCmd('insertOrderedList')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Numeración">1.</button>
-          <button (click)="execCmd('outdent')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Reducir Sangría">⇤</button>
-          <button (click)="execCmd('indent')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Aumentar Sangría">⇥</button>
-        </div>
-
-        <!-- Insertables -->
-        <div class="flex border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900 overflow-hidden shadow-sm text-sm">
-          <button (click)="insertLink()" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Insertar Enlace">🔗</button>
-          <button (click)="insertImage()" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Insertar Imagen">🖼️</button>
-          <button (click)="insertTable()" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors" title="Insertar Tabla">📊</button>
-          <button (click)="execCmd('insertHorizontalRule')" class="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300" title="Línea Horizontal">―</button>
-        </div>
-
-        <!-- Colores -->
-        <div class="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 shadow-sm">
-          <label class="text-[10px] text-gray-500 font-bold uppercase cursor-pointer" title="Color del texto">T</label>
-          <input type="color" (change)="execCmd('foreColor', $any($event.target).value)" class="w-5 h-5 rounded cursor-pointer border-0 p-0 bg-transparent" title="Color del texto">
-          <div class="w-px h-4 bg-gray-200 dark:bg-gray-700"></div>
-          <label class="text-[10px] text-gray-500 font-bold uppercase cursor-pointer" title="Color de fondo">F</label>
-          <input type="color" value="#ffffff" (change)="execCmd('hiliteColor', $any($event.target).value)" class="w-5 h-5 rounded cursor-pointer border-0 p-0 bg-transparent" title="Resaltador">
-        </div>
-
-        <!-- Limpiar -->
-        <button (click)="execCmd('removeFormat')" class="px-3 py-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm shadow-sm transition-colors" title="Limpiar Formato">🧹 Limpiar</button>
-      </div>
-
-      <!-- Lienzo del Editor -->
-      <div class="flex-1 overflow-y-auto px-12 py-10 flex justify-center bg-gray-50/20 dark:bg-gray-900 custom-scrollbar">
-        <div class="max-w-4xl w-full">
-          <div
-            #editorRef
-            contenteditable="true"
-            class="min-h-full outline-none text-gray-800 dark:text-gray-200 leading-relaxed text-lg pb-32 editor-canvas"
-            (input)="onEditorInput()"
-            placeholder="Comienza a escribir tus notas aquí... (Presiona Enter para una nueva línea)"
-          ></div>
+      <div class="toolbar-shell">
+        <div class="toolbar" role="toolbar" aria-label="Formato de texto">
+          <div class="tool-group">
+            <button type="button" (click)="run('undo')" [disabled]="!canRun('undo')" title="Deshacer (Ctrl+Z)">↶</button>
+            <button type="button" (click)="run('redo')" [disabled]="!canRun('redo')" title="Rehacer">↷</button>
+          </div>
+          <div class="tool-group format-select">
+            <select [value]="currentBlock" (change)="setBlock($any($event.target).value)" aria-label="Estilo de párrafo">
+              <option value="paragraph">Texto</option><option value="heading-1">Título 1</option><option value="heading-2">Título 2</option><option value="heading-3">Título 3</option><option value="blockquote">Cita</option>
+            </select>
+          </div>
+          <div class="tool-group">
+            <button type="button" (click)="run('bold')" [class.active]="active('bold')" title="Negrita"><strong>B</strong></button>
+            <button type="button" (click)="run('italic')" [class.active]="active('italic')" title="Cursiva"><em>I</em></button>
+            <button type="button" (click)="run('underline')" [class.active]="active('underline')" title="Subrayado"><u>U</u></button>
+            <button type="button" (click)="run('strike')" [class.active]="active('strike')" title="Tachado"><s>S</s></button>
+            <label class="color-tool" title="Color del texto"><span>A</span><input type="color" value="#143c43" (input)="setColor($any($event.target).value)"></label>
+            <button type="button" (click)="run('highlight')" [class.active]="active('highlight')" title="Resaltar">▰</button>
+          </div>
+          <div class="tool-group">
+            <button type="button" (click)="run('bulletList')" [class.active]="active('bulletList')" title="Lista con viñetas">•≡</button>
+            <button type="button" (click)="run('orderedList')" [class.active]="active('orderedList')" title="Lista numerada">1≡</button>
+            <button type="button" (click)="run('taskList')" [class.active]="active('taskList')" title="Lista de tareas">☑</button>
+          </div>
+          <div class="tool-group">
+            <button type="button" (click)="setAlign('left')" [class.active]="active({ textAlign: 'left' })" title="Alinear izquierda">≡</button>
+            <button type="button" (click)="setAlign('center')" [class.active]="active({ textAlign: 'center' })" title="Centrar">≣</button>
+            <button type="button" (click)="setAlign('right')" [class.active]="active({ textAlign: 'right' })" title="Alinear derecha">≡</button>
+          </div>
+          <div class="tool-group">
+            <button type="button" (click)="setLink()" [class.active]="active('link')" title="Insertar enlace">↗</button>
+            <button type="button" (click)="addImage()" title="Insertar imagen">▧</button>
+            <button type="button" (click)="addTable()" title="Insertar tabla">▦</button>
+            <button type="button" (click)="run('codeBlock')" [class.active]="active('codeBlock')" title="Bloque de código">&lt;/&gt;</button>
+            <button type="button" (click)="run('horizontalRule')" title="Separador">―</button>
+          </div>
         </div>
       </div>
+
+      <main class="document-scroll">
+        <article class="paper" [class.loading]="isLoading()">
+          <div class="paper-rule"></div>
+          <div class="title-area">
+            <span class="page-kicker">Nota / {{ state.selectedSection()?.name }}</span>
+            <textarea
+              [ngModel]="page.title"
+              (ngModelChange)="onTitleChange($event)"
+              rows="1" maxlength="255"
+              aria-label="Título de la página"
+              placeholder="Página sin título"
+            ></textarea>
+            <div class="page-meta"><span>{{ words }} palabras</span><span>{{ characters }} caracteres</span><span>Versión {{ page.version || 1 }}</span></div>
+          </div>
+          <div #editorHost class="editor-host"></div>
+          <div *ngIf="isLoading()" class="loading-document"><span></span><span></span><span></span></div>
+          <p *ngIf="loadError()" class="document-error">{{ loadError() }} <button type="button" (click)="loadPage(page.pageId)">Reintentar</button></p>
+        </article>
+      </main>
+
+      <footer class="statusbar">
+        <span><kbd>Ctrl</kbd> + <kbd>K</kbd> enlace</span>
+        <span>Guardado automático</span>
+      </footer>
     </div>
 
-    <!-- Estado Vacío -->
-    <ng-template #noPage>
-      <div class="flex-1 h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900 text-gray-400 select-none transition-colors duration-300">
-        <div class="w-24 h-24 bg-gray-50 dark:bg-gray-800 rounded-3xl flex items-center justify-center text-5xl mb-6 shadow-sm border border-gray-100 dark:border-gray-800">
-          📝
-        </div>
-        <h2 class="font-medium text-gray-600 dark:text-gray-300 text-xl mb-2">Tu espacio de trabajo está listo</h2>
-        <p class="text-gray-400 dark:text-gray-500 max-w-sm text-center text-sm">Selecciona una página existente o crea una nueva desde el menú lateral para comenzar a documentar.</p>
+    <ng-template #welcome>
+      <div class="welcome">
+        <button class="menu-button welcome-menu" type="button" (click)="state.toggleSidebar()" aria-label="Abrir biblioteca"><span></span><span></span><span></span></button>
+        <div class="welcome-art"><div class="sheet back"></div><div class="sheet front"><i></i><i></i><i></i><b>+</b></div></div>
+        <span class="welcome-kicker">Espacio en blanco</span>
+        <h1>Una idea merece<br><em>un buen margen.</em></h1>
+        <p>Selecciona una página de tu biblioteca o crea una nueva para empezar a escribir.</p>
       </div>
     </ng-template>
   `,
-  styles: [`
-    .editor-canvas[contenteditable]:empty::before {
-      content: attr(placeholder);
-      color: #9ca3af;
-      pointer-events: none;
-      display: block;
-      font-style: italic;
-    }
-    .editor-canvas *:focus { outline: none; }
-    
-    /* Estilos enriquecidos globales para el contenido inyectado por execCommand */
-    ::ng-deep .editor-canvas h1 { font-size: 2.25rem; font-weight: 800; margin-top: 1.5rem; margin-bottom: 1rem; line-height: 1.2; color: inherit; }
-    ::ng-deep .editor-canvas h2 { font-size: 1.75rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; color: inherit; }
-    ::ng-deep .editor-canvas p { margin-bottom: 0.75rem; min-height: 1.5rem; }
-    ::ng-deep .editor-canvas ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
-    ::ng-deep .editor-canvas ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
-    ::ng-deep .editor-canvas b, ::ng-deep .editor-canvas strong { font-weight: 700; color: inherit; }
-    ::ng-deep .editor-canvas i, ::ng-deep .editor-canvas em { font-style: italic; }
-    ::ng-deep .editor-canvas u { text-decoration: underline; text-underline-offset: 4px; }
-    
-    /* Estilos para Tablas, Imágenes y Enlaces insertados */
-    ::ng-deep .editor-canvas table { width: 100%; border-collapse: collapse; margin: 1rem 0; border: 1px solid #cbd5e1; }
-    ::ng-deep .editor-canvas th, ::ng-deep .editor-canvas td { border: 1px solid #cbd5e1; padding: 0.5rem; text-align: left; }
-    ::ng-deep .editor-canvas th { background-color: #f8fafc; font-weight: bold; }
-    ::ng-deep .editor-canvas img { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1); }
-    ::ng-deep .editor-canvas a { color: #4f46e5; text-decoration: underline; text-underline-offset: 2px; }
-    ::ng-deep .editor-canvas hr { margin: 1.5rem 0; border-color: #e2e8f0; border-top-width: 2px; }
-  `]
+  styleUrls: ['./page-editor.component.css']
 })
-export class PageEditorComponent {
-  editorText: string = '';
-  isSaving: boolean = false;
-  
-  @ViewChild('editorRef') editorRef!: ElementRef<HTMLDivElement>;
+export class PageEditorComponent implements OnDestroy {
+  @ViewChild('editorHost')
+  set editorHost(host: ElementRef<HTMLDivElement> | undefined) {
+    if (!host) {
+      this.editor?.destroy();
+      this.editor = undefined;
+      this.requestedPageId = '';
+      return;
+    }
+    if (this.editor) return;
+    this.initializeEditor(host.nativeElement);
+  }
 
-  // Debouncer reactivo de RxJS para retrasar la persistencia de escritura
-  private saveSubject = new Subject<string>();
-  private currentBlock: any = null; // Referencia al bloque existente para hacer UPDATE
+  editor?: Editor;
+  saveStatus = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  isLoading = signal(false);
+  loadError = signal('');
+  words = 0;
+  characters = 0;
+  private requestedPageId = '';
+  private readonly saveSubject = new Subject<SavePayload>();
+  private readonly titleSubject = new Subject<{ pageId: string; title: string; revision: number }>();
+  private readonly destroy$ = new Subject<void>();
+  private titleRevision = 0;
+  private saveNextUpdateImmediately = false;
 
   constructor(public state: StateService, private api: ApiService) {
-    // Detectar reactivamente cuándo cambia la página seleccionada en el árbol
     effect(() => {
-      const activePage = this.state.selectedPage();
-      if (activePage) {
-        this.loadCurrentPageContent(activePage.pageId);
-      }
+      const pageId = this.state.selectedPage()?.pageId;
+      if (pageId && pageId !== this.requestedPageId) this.loadPage(pageId);
     });
 
-    // Escuchar el flujo de escritura con debounce para resguardar los hilos del servidor
     this.saveSubject.pipe(
-      debounceTime(700)
-    ).subscribe(text => {
-      this.persistContentToPostgres(text);
+      debounce(payload => timer(payload.immediate ? 0 : 400)),
+      concatMap(payload => {
+        this.saveStatus.set('saving');
+        return this.api.savePrimaryContent(payload.pageId, {
+          pageId: payload.pageId,
+          type: 'text',
+          contentData: JSON.stringify({ html: payload.html, text: payload.text, schemaVersion: 2, updatedFrom: 'web' }),
+          orderOnPage: 0,
+          lastModifiedByUserId: this.api.getMockUserId()
+        }).pipe(
+          catchError(() => { this.saveStatus.set('error'); return of(null); })
+        );
+      }),
+      takeUntil(this.destroy$)
+    ).subscribe(result => { if (result) this.saveStatus.set('saved'); });
+
+    this.titleSubject.pipe(
+      debounceTime(500),
+      switchMap(payload => this.api.updatePage(payload.pageId, {
+        title: payload.title,
+        lastModifiedByUserId: this.api.getMockUserId()
+      }).pipe(
+        map(updated => ({ updated, payload })),
+        catchError(() => of({ updated: null, payload }))
+      )),
+      takeUntil(this.destroy$)
+    ).subscribe(({ updated, payload }) => {
+      if (payload.revision !== this.titleRevision || this.state.selectedPage()?.pageId !== payload.pageId) return;
+      if (!updated) { this.saveStatus.set('error'); return; }
+      this.state.updatePage(updated);
+      this.saveStatus.set('saved');
     });
   }
 
-  loadCurrentPageContent(pageId: string) {
-    this.api.getContentBlocksByPage(pageId).subscribe({
-      next: (blocks) => {
-        // Usamos slice().reverse() por si hay duplicados antiguos en la BD debido al bug previo, toma el más reciente
-        const textBlock = blocks.slice().reverse().find(b => b.type === 'text');
-        let newHtml = '';
-        if (textBlock) {
-          this.currentBlock = textBlock;
-          try {
-            const doc = JSON.parse(textBlock.contentData);
-            newHtml = doc.html || doc.text || '';
-          } catch {
-            newHtml = textBlock.contentData;
-          }
-        } else {
-          this.currentBlock = null;
-        }
-        this.editorText = newHtml;
-        if (this.editorRef) {
-          this.editorRef.nativeElement.innerHTML = newHtml;
+  private initializeEditor(element: HTMLDivElement) {
+    this.editor = new Editor({
+      element,
+      extensions: [
+        StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
+        Image.configure({ allowBase64: false, inline: false }),
+        Highlight.configure({ multicolor: true }),
+        TextStyle,
+        Color,
+        TextAlign.configure({ types: ['heading', 'paragraph'] }),
+        Placeholder.configure({ placeholder: 'Empieza a escribir. Usa “/” para pensar en bloques, o simplemente deja fluir la idea…' }),
+        TaskList,
+        TaskItem.configure({ nested: true }),
+        TableKit.configure({ table: { resizable: true } })
+      ],
+      editorProps: {
+        attributes: { class: 'note-editor', spellcheck: 'true', 'aria-label': 'Contenido de la nota' },
+        handleKeyDown: (_view, event) => {
+          if (event.key === 'Enter') this.saveNextUpdateImmediately = true;
+          return false;
         }
       },
-      error: () => {
-        this.currentBlock = null;
-        this.editorText = '';
-        if (this.editorRef) this.editorRef.nativeElement.innerHTML = '';
+      onUpdate: ({ editor }) => {
+        this.updateMetrics();
+        const pageId = this.state.selectedPage()?.pageId;
+        if (pageId && !this.isLoading()) {
+          const immediate = this.saveNextUpdateImmediately;
+          this.saveNextUpdateImmediately = false;
+          this.saveStatus.set('saving');
+          this.saveSubject.next({ pageId, html: editor.getHTML(), text: editor.getText(), immediate });
+        }
+      },
+      onSelectionUpdate: () => { /* Forces toolbar bindings to be rechecked. */ }
+    });
+    const pageId = this.state.selectedPage()?.pageId;
+    if (pageId) this.loadPage(pageId, true);
+  }
+
+  get saveLabel() {
+    return { idle: 'Sin cambios', saving: 'Guardando…', saved: 'Todo guardado', error: 'Error al guardar' }[this.saveStatus()];
+  }
+  get currentBlock() {
+    if (this.active('heading', { level: 1 })) return 'heading-1';
+    if (this.active('heading', { level: 2 })) return 'heading-2';
+    if (this.active('heading', { level: 3 })) return 'heading-3';
+    if (this.active('blockquote')) return 'blockquote';
+    return 'paragraph';
+  }
+
+  loadPage(pageId: string, force = false) {
+    if (!this.editor) { this.requestedPageId = ''; return; }
+    if (!force && pageId === this.requestedPageId) return;
+    this.requestedPageId = pageId;
+    this.isLoading.set(true);
+    this.loadError.set('');
+    this.saveStatus.set('idle');
+    this.editor.setEditable(false);
+    this.api.getContentBlocksByPage(pageId).pipe(finalize(() => {
+      if (this.requestedPageId === pageId) {
+        this.isLoading.set(false);
+        this.editor?.setEditable(true);
+      }
+    })).subscribe({
+      next: blocks => {
+        if (this.requestedPageId !== pageId || !this.editor) return;
+        const block = blocks.find(item => item.type === 'text');
+        let html = '';
+        if (block) {
+          try { const parsed = JSON.parse(block.contentData); html = parsed.html || parsed.text || ''; }
+          catch { html = block.contentData || ''; }
+        }
+        this.editor.commands.setContent(html, { emitUpdate: false });
+        this.updateMetrics();
+        this.saveStatus.set(block ? 'saved' : 'idle');
+      },
+      error: error => {
+        if (this.requestedPageId === pageId) this.loadError.set(error.message || 'No se pudo abrir esta nota.');
       }
     });
   }
 
-  onEditorInput() {
-    this.isSaving = true;
-    if (this.editorRef) {
-      this.editorText = this.editorRef.nativeElement.innerHTML;
-      this.saveSubject.next(this.editorText);
-    }
+  active(nameOrAttrs: string | Record<string, unknown>, attrs: Record<string, unknown> = {}) {
+    if (!this.editor) return false;
+    return typeof nameOrAttrs === 'string' ? this.editor.isActive(nameOrAttrs, attrs) : this.editor.isActive(nameOrAttrs);
   }
 
-  execCmd(command: string, value: string = '') {
-    document.execCommand(command, false, value);
-    if (this.editorRef) {
-      this.editorRef.nativeElement.focus();
-    }
-    this.onEditorInput(); // Dispara el guardado
+  canRun(command: 'undo' | 'redo') {
+    if (!this.editor) return false;
+    return command === 'undo' ? this.editor.can().undo() : this.editor.can().redo();
   }
 
-  insertLink() {
-    const url = prompt('Ingresa la URL del enlace (ej: https://google.com):');
-    if (url) {
-      this.execCmd('createLink', url);
-    }
+  run(command: string) {
+    if (!this.editor) return;
+    const chain: any = this.editor.chain().focus();
+    const actions: Record<string, () => void> = {
+      undo: () => chain.undo().run(), redo: () => chain.redo().run(), bold: () => chain.toggleBold().run(),
+      italic: () => chain.toggleItalic().run(), underline: () => chain.toggleUnderline().run(), strike: () => chain.toggleStrike().run(),
+      highlight: () => chain.toggleHighlight({ color: '#f6d88b' }).run(), bulletList: () => chain.toggleBulletList().run(),
+      orderedList: () => chain.toggleOrderedList().run(), taskList: () => chain.toggleTaskList().run(),
+      codeBlock: () => chain.toggleCodeBlock().run(), horizontalRule: () => chain.setHorizontalRule().run()
+    };
+    actions[command]?.();
   }
 
-  insertImage() {
-    const url = prompt('Ingresa la URL de la imagen:');
-    if (url) {
-      this.execCmd('insertImage', url);
-    }
+  setBlock(value: string) {
+    if (!this.editor) return;
+    const chain = this.editor.chain().focus();
+    if (value === 'paragraph') chain.setParagraph().run();
+    else if (value === 'blockquote') chain.toggleBlockquote().run();
+    else chain.toggleHeading({ level: Number(value.at(-1)) as 1 | 2 | 3 }).run();
   }
+  setAlign(alignment: 'left' | 'center' | 'right') { this.editor?.chain().focus().setTextAlign(alignment).run(); }
+  setColor(color: string) { this.editor?.chain().focus().setColor(color).run(); }
 
-  insertTable() {
-    const rowsStr = prompt('Número de filas:', '3');
-    const colsStr = prompt('Número de columnas:', '3');
-    
-    const rows = parseInt(rowsStr || '3', 10);
-    const cols = parseInt(colsStr || '3', 10);
-
-    if (isNaN(rows) || isNaN(cols) || rows <= 0 || cols <= 0) return;
-
-    let tableHTML = '<table><tbody>';
-    for (let i = 0; i < rows; i++) {
-      tableHTML += '<tr>';
-      for (let j = 0; j < cols; j++) {
-        tableHTML += i === 0 ? '<th>Encabezado</th>' : '<td>Celda</td>';
-      }
-      tableHTML += '</tr>';
-    }
-    tableHTML += '</tbody></table><p><br></p>';
-
-    this.execCmd('insertHTML', tableHTML);
+  setLink() {
+    if (!this.editor) return;
+    const previous = this.editor.getAttributes('link')['href'] || '';
+    const raw = prompt('Dirección del enlace', previous);
+    if (raw === null) return;
+    if (!raw.trim()) { this.editor.chain().focus().extendMarkRange('link').unsetLink().run(); return; }
+    const href = this.safeUrl(raw);
+    if (!href) { alert('Usa una dirección http(s) o mailto válida.'); return; }
+    this.editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
   }
+  addImage() {
+    const raw = prompt('Dirección pública de la imagen (https://)');
+    const src = raw ? this.safeUrl(raw, false) : null;
+    if (src) this.editor?.chain().focus().setImage({ src }).run();
+    else if (raw) alert('La imagen debe usar una dirección http(s) válida.');
+  }
+  addTable() { this.editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }
 
-  persistContentToPostgres(htmlContent: string) {
+  onTitleChange(title: string) {
     const page = this.state.selectedPage();
     if (!page) return;
+    const draft = { ...page, title };
+    this.state.updatePage(draft);
+    const normalizedTitle = title.trim();
+    const revision = ++this.titleRevision;
+    if (!normalizedTitle) {
+      this.saveStatus.set('idle');
+      return;
+    }
+    this.saveStatus.set('saving');
+    this.titleSubject.next({ pageId: page.pageId, title: normalizedTitle, revision });
+  }
 
-    // Estructuramos el payload libre en formato String JSON
-    const jsonbPayload = JSON.stringify({
-      html: htmlContent,
-      text: this.editorRef?.nativeElement.innerText || '',
-      charactersCount: htmlContent.length,
-      device: 'web-client'
-    });
+  private safeUrl(raw: string, allowMail = true) {
+    try {
+      const value = raw.includes('://') || raw.startsWith('mailto:') ? raw : `https://${raw}`;
+      const url = new URL(value);
+      return url.protocol === 'https:' || url.protocol === 'http:' || (allowMail && url.protocol === 'mailto:') ? url.href : null;
+    } catch { return null; }
+  }
+  private updateMetrics() {
+    const text = this.editor?.getText().trim() || '';
+    this.characters = text.length;
+    this.words = text ? text.split(/\s+/).length : 0;
+  }
 
-    const payload = {
-      ...(this.currentBlock || {}), // Propaga el ID si ya existía para hacer un UPDATE en la base de datos
-      pageId: page.pageId,
-      type: 'text',
-      contentData: jsonbPayload,
-      orderOnPage: 1,
-      lastModifiedByUserId: this.api.getMockUserId()
-    };
-
-    this.api.saveContentBlock(payload).subscribe({
-      next: (savedBlock) => {
-        this.isSaving = false;
-        this.currentBlock = savedBlock; // Guardamos la referencia actualizada (con ID asegurado)
-      },
-      error: () => this.isSaving = false
-    });
+  ngOnDestroy() {
+    this.destroy$.next(); this.destroy$.complete(); this.saveSubject.complete(); this.titleSubject.complete(); this.editor?.destroy();
   }
 }

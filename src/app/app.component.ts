@@ -2,16 +2,25 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { PageEditorComponent } from './components/page-editor/page-editor.component';
+import { StateService } from './services/state.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
   imports: [CommonModule, SidebarComponent, PageEditorComponent],
   template: `
-    <div class="flex h-screen w-screen overflow-hidden bg-white dark:bg-gray-900">
-      <app-sidebar class="shrink-0 flex"></app-sidebar>
-      <app-page-editor class="flex-1 min-w-0"></app-page-editor>
-    </div>
+    <main class="app-shell">
+      <button
+        *ngIf="state.sidebarOpen()"
+        class="sidebar-backdrop"
+        aria-label="Cerrar navegación"
+        (click)="state.sidebarOpen.set(false)"
+      ></button>
+      <app-sidebar [class.sidebar-visible]="state.sidebarOpen()"></app-sidebar>
+      <app-page-editor></app-page-editor>
+    </main>
   `
 })
-export class AppComponent {}
+export class AppComponent {
+  constructor(public state: StateService) {}
+}

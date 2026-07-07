@@ -23,7 +23,8 @@
               "src/assets"
             ],
             "styles": ["src/styles.css"],
-            "scripts": []
+            "scripts": [],
+            "outputHashing": "all"
           }
         },
         "serve": {

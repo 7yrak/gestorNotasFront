@@ -8,14 +8,14 @@ import { Notebook, Section, Page, PageContentBlock } from '../models/types';
   providedIn: 'root'
 })
 export class ApiService {
-  // Configuración dinámica para que detecte la IP del servidor automáticamente
-  private baseUrl = `http://${window.location.hostname}:8082/api`;
+  private readonly baseUrl = `${window.location.protocol}//${window.location.hostname}:8082/api`;
+  private readonly fallbackUserId = 'f1ce8d47-f208-4ab9-932b-8979840887a2';
 
   constructor(private http: HttpClient) {}
 
   // ID del usuario de prueba persistido en tu BD
   getMockUserId(): string {
-    return 'f1ce8d47-f208-4ab9-932b-8979840887a2';
+    return localStorage.getItem('gestor-notas-user-id') || this.fallbackUserId;
   }
 
   // Manejador central de errores para ver el detalle en consola (F12)
@@ -27,7 +27,8 @@ export class ApiService {
         `Backend devolvió código ${error.status}, ` +
         `cuerpo era: ${JSON.stringify(error.error)}`);
     }
-    return throwError(() => new Error('Algo salió mal, revisa la consola para ver el error del backend.'));
+    const backendMessage = typeof error.error?.message === 'string' ? error.error.message : null;
+    return throwError(() => new Error(backendMessage || 'No fue posible conectar con el servidor.'));
   }
 
   // --- CRUD NOTEBOOKS ---
@@ -105,8 +106,17 @@ export class ApiService {
   }
 
   saveContentBlock(block: Partial<PageContentBlock>): Observable<PageContentBlock> {
-    return this.http.post<PageContentBlock>(`${this.baseUrl}/pageContentBlocks`, block).pipe(
+    const request = block.contentBlockId
+      ? this.http.put<PageContentBlock>(`${this.baseUrl}/pageContentBlocks/${block.contentBlockId}`, block)
+      : this.http.post<PageContentBlock>(`${this.baseUrl}/pageContentBlocks`, block);
+    return request.pipe(
       catchError(this.handleError)
     );
+  }
+
+  savePrimaryContent(pageId: string, block: Partial<PageContentBlock>): Observable<PageContentBlock> {
+    return this.http.put<PageContentBlock>(
+      `${this.baseUrl}/pageContentBlocks/page/${pageId}/primary`, block
+    ).pipe(catchError(this.handleError));
   }
 }
