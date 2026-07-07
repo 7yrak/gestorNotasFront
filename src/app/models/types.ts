@@ -42,3 +42,32 @@ export interface PageContentBlock {
   orderOnPage: number;
   lastModifiedByUserId: string;
 }
+
+export interface SectionGroup {
+  sectionGroupId: string;
+  notebookId: string;
+  parentSectionGroupId?: string | null;
+  name: string;
+  isDeleted: boolean;
+  orderInParent: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Tag {
+  tagId: string;
+  userId: string;
+  name: string;
+  color?: string;
+  createdAt?: string;
+}
+
+export interface Resource {
+  resourceId: string;
+  userId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  storagePath: string;
+  createdAt?: string;
+}

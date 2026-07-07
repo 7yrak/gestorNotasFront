@@ -1,9 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit, effect, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { forkJoin, Observable, of } from 'rxjs';
+import { firstValueFrom, forkJoin, Observable, of } from 'rxjs';
 import { catchError, finalize, switchMap, tap } from 'rxjs/operators';
-import { Notebook, Page, Section } from '../../models/types';
+import { Notebook, Page, PageContentBlock, Resource, Section, SectionGroup, Tag } from '../../models/types';
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
 
@@ -101,6 +101,13 @@ type ModalAction = 'create-notebook' | 'create-section' | 'create-page' |
         <div *ngIf="searchTerm && !filteredNotebooks.length && !isLoading()" class="status-card">Sin resultados para “{{ searchTerm }}”.</div>
       </div>
 
+      <div class="backup-panel">
+        <button type="button" class="backup-button" (click)="exportBackup()" [disabled]="isExporting() || isLoading()">
+          <span class="backup-icon" aria-hidden="true">↓</span>
+          <span><strong>{{ isExporting() ? 'Preparando respaldo…' : 'Exportar respaldo' }}</strong><small>{{ exportStatus() || 'Cuadernos, páginas y contenido' }}</small></span>
+        </button>
+      </div>
+
       <footer class="sidebar-footer">
         <button type="button" class="profile"><span>TS</span><div><strong>Mi espacio</strong><small>Sincronización activa</small></div></button>
         <button type="button" class="icon-button" (click)="toggleTheme()" [title]="isDarkTheme ? 'Usar tema claro' : 'Usar tema oscuro'">
@@ -135,6 +142,8 @@ export class SidebarComponent implements OnInit {
   isLoading = signal(true);
   loadError = signal('');
   treeRevision = signal(0);
+  isExporting = signal(false);
+  exportStatus = signal('');
   isDarkTheme = false;
 
   draggedItem: Notebook | Section | Page | null = null;
@@ -328,5 +337,90 @@ export class SidebarComponent implements OnInit {
       forkJoin(updates).pipe(catchError(() => { this.loadNotebooksTree(); return of([]); })).subscribe();
     }
     this.draggedItem = null; this.draggedType = null;
+  }
+
+  async exportBackup() {
+    if (this.isExporting()) return;
+    this.isExporting.set(true);
+    this.exportStatus.set('Leyendo la biblioteca…');
+
+    try {
+      const userId = this.api.getMockUserId();
+      const notebooks = await firstValueFrom(this.api.getNotebooks());
+      const [sectionLists, groupLists, allTags, allResources] = await Promise.all([
+        Promise.all(notebooks.map(book => firstValueFrom(this.api.getSectionsByNotebook(book.notebookId)))),
+        Promise.all(notebooks.map(book => firstValueFrom(this.api.getSectionGroupsByNotebook(book.notebookId)))),
+        firstValueFrom(this.api.getTags()),
+        firstValueFrom(this.api.getResources())
+      ]);
+
+      const sections = sectionLists.flat();
+      const pageLists = await Promise.all(sections.map(section => firstValueFrom(this.api.getPagesBySection(section.sectionId))));
+      const pages = pageLists.flat();
+      this.exportStatus.set(`Leyendo ${pages.length} páginas…`);
+
+      const contentEntries = await Promise.all(pages.map(async page => ({
+        pageId: page.pageId,
+        blocks: await firstValueFrom(this.api.getContentBlocksByPage(page.pageId))
+      })));
+      const contentByPage = new Map<string, PageContentBlock[]>(contentEntries.map(entry => [entry.pageId, entry.blocks]));
+      const sectionsByNotebook = new Map<string, Section[]>();
+      const pagesBySection = new Map<string, Page[]>();
+      const groupsByNotebook = new Map<string, SectionGroup[]>();
+
+      notebooks.forEach((book, index) => {
+        sectionsByNotebook.set(book.notebookId, sectionLists[index] || []);
+        groupsByNotebook.set(book.notebookId, groupLists[index] || []);
+      });
+      sections.forEach((section, index) => pagesBySection.set(section.sectionId, pageLists[index] || []));
+
+      const backup = {
+        format: 'margen-backup',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        userId,
+        summary: {
+          notebooks: notebooks.length,
+          sectionGroups: groupLists.flat().length,
+          sections: sections.length,
+          pages: pages.length,
+          contentBlocks: contentEntries.reduce((total, entry) => total + entry.blocks.length, 0)
+        },
+        notebooks: notebooks.map(notebook => ({
+          ...notebook,
+          sectionGroups: groupsByNotebook.get(notebook.notebookId) || [],
+          sections: (sectionsByNotebook.get(notebook.notebookId) || []).map(section => ({
+            ...section,
+            pages: (pagesBySection.get(section.sectionId) || []).map(page => ({
+              ...page,
+              contentBlocks: contentByPage.get(page.pageId) || []
+            }))
+          }))
+        })),
+        tags: allTags.filter((tag: Tag) => tag.userId === userId),
+        resources: allResources.filter((resource: Resource) => resource.userId === userId)
+      };
+
+      this.downloadBackup(backup);
+      this.exportStatus.set('Respaldo descargado');
+    } catch (error) {
+      console.error('No se pudo exportar el respaldo:', error);
+      this.exportStatus.set('No se pudo completar. Intenta nuevamente.');
+    } finally {
+      this.isExporting.set(false);
+    }
+  }
+
+  private downloadBackup(backup: object) {
+    const date = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `margen-respaldo-${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }

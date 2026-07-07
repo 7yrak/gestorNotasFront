@@ -54,6 +54,13 @@
 .empty-library { flex-direction: column; text-align: center; }
 .empty-library p { margin: 0; line-height: 1.5; }
 .empty-sketch { width: 44px; height: 50px; display: grid; place-items: center; border-radius: 3px 12px 12px 3px; color: white; background: var(--ink); font: 22px Georgia,serif; transform: rotate(-3deg); }
+.backup-panel { padding: 10px 12px; border-top: 1px solid var(--line); }
+.backup-button { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: var(--panel-strong); text-align: left; cursor: pointer; transition: border-color .2s, background .2s, transform .2s; }
+.backup-button:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+.backup-button:disabled { opacity: .6; cursor: wait; transform: none; }
+.backup-button > span:last-child { min-width: 0; display: flex; flex-direction: column; }
+.backup-button strong { font-size: 12px; }.backup-button small { margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.backup-icon { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; color: white; background: var(--accent); font-size: 19px; font-weight: 800; }
 .sidebar-footer { min-height: 72px; padding: 12px 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--line); }
 .profile { min-width: 0; flex: 1; display: flex; align-items: center; gap: 9px; border: 0; background: none; text-align: left; }
 .profile > span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: white; background: var(--ink); font: 700 12px Georgia,serif; }

@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { Notebook, Section, Page, PageContentBlock } from '../models/types';
+import { Notebook, Section, Page, PageContentBlock, Resource, SectionGroup, Tag } from '../models/types';
 
 @Injectable({
   providedIn: 'root'
@@ -51,6 +51,10 @@ export class ApiService {
   // --- CRUD SECTIONS ---
   getSectionsByNotebook(notebookId: string): Observable<Section[]> {
     return this.http.get<Section[]>(`${this.baseUrl}/sections/notebook/${notebookId}`);
+  }
+
+  getSectionGroupsByNotebook(notebookId: string): Observable<SectionGroup[]> {
+    return this.http.get<SectionGroup[]>(`${this.baseUrl}/sectionGroups/notebook/${notebookId}`);
   }
 
   createSection(section: Partial<Section>): Observable<Section> {
@@ -118,5 +122,14 @@ export class ApiService {
     return this.http.put<PageContentBlock>(
       `${this.baseUrl}/pageContentBlocks/page/${pageId}/primary`, block
     ).pipe(catchError(this.handleError));
+  }
+
+
+  getTags(): Observable<Tag[]> {
+    return this.http.get<Tag[]>(`${this.baseUrl}/tags`);
+  }
+
+  getResources(): Observable<Resource[]> {
+    return this.http.get<Resource[]>(`${this.baseUrl}/resources`);
   }
 }
