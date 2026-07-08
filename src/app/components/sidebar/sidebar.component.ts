@@ -87,7 +87,7 @@ type ModalAction = 'create-notebook' | 'create-section' | 'create-page' |
                       (click)="onSelectPage(page, section, notebook)"
                       draggable="true" (dragstart)="onDragStart($event, page, 'page')"
                       (dragover)="onDragOver($event)" (drop)="onDrop($event, page, 'page')">
-                      <span class="page-glyph">▱</span>
+                      <span class="page-glyph" [style.color]="page.color || section.color">▱</span>
                       <span>{{ page.title || 'Sin título' }}</span>
                       <i (click)="editPage($event, page)" title="Renombrar">···</i>
                     </button>
@@ -129,6 +129,12 @@ type ModalAction = 'create-notebook' | 'create-section' | 'create-page' |
         <span class="modal-kicker">Organizar biblioteca</span>
         <h2>{{ modalTitle }}</h2>
         <label>Nombre<input name="modalValue" [(ngModel)]="modalValue" [placeholder]="modalPlaceholder" maxlength="255" autofocus></label>
+        <fieldset class="color-picker" *ngIf="canChooseColor">
+          <legend>Color</legend>
+          <div class="color-swatches">
+            <button *ngFor="let color of availableColors" type="button" [style.background]="color" [class.selected]="modalColor === color" (click)="modalColor = color" [attr.aria-label]="'Usar color ' + color"><span *ngIf="modalColor === color">✓</span></button>
+          </div>
+        </fieldset>
         <p class="modal-error" *ngIf="actionError">{{ actionError }}</p>
         <div class="modal-actions">
           <button type="button" class="ghost" (click)="closeModal()">Cancelar</button>
@@ -162,10 +168,12 @@ export class SidebarComponent implements OnInit {
   modalTitle = '';
   modalValue = '';
   modalPlaceholder = '';
+  modalColor = '#5d9c91';
   modalAction: ModalAction | null = null;
   modalContext: any = null;
   isActionPending = false;
   actionError = '';
+  readonly availableColors = ['#e55b3c', '#e29b36', '#d2b53c', '#55a66f', '#3d9a93', '#3d78b8', '#725bb8', '#b05b9f', '#b65568', '#69777a'];
 
   constructor(private api: ApiService, public state: StateService) {
     effect(() => {
@@ -201,6 +209,7 @@ export class SidebarComponent implements OnInit {
   get totalPages() { return Object.values(this.pagesMap).reduce((sum, pages) => sum + pages.length, 0); }
   get backupBusy() { return this.isExporting() || this.isRestoring(); }
   get isEditAction() { return !!this.modalAction?.startsWith('edit-'); }
+  get canChooseColor() { return !!this.modalAction; }
   get filteredNotebooks() { return this.notebooks.filter(book => this.matchesNotebook(book)); }
 
   trackNotebook = (_: number, item: Notebook) => item.notebookId;
@@ -283,7 +292,10 @@ export class SidebarComponent implements OnInit {
   editPage(event: Event, page: Page) { event.stopPropagation(); this.openModal('edit-page', 'Editar página', '', page.title, { page }); }
 
   openModal(action: ModalAction, title: string, placeholder: string, value: string, context: any = null) {
-    Object.assign(this, { modalAction: action, modalTitle: title, modalPlaceholder: placeholder, modalValue: value, modalContext: context, isModalOpen: true, actionError: '' });
+    const existingColor = context?.notebook?.color || context?.section?.color || context?.page?.color;
+    const inheritedColor = action === 'create-page' ? context?.section?.color : null;
+    const defaultColor = action.includes('notebook') ? '#e55b3c' : '#5d9c91';
+    Object.assign(this, { modalAction: action, modalTitle: title, modalPlaceholder: placeholder, modalValue: value, modalColor: existingColor || inheritedColor || defaultColor, modalContext: context, isModalOpen: true, actionError: '' });
   }
   closeModal() { if (!this.isActionPending) { this.isModalOpen = false; this.modalContext = null; this.actionError = ''; } }
 
@@ -294,12 +306,12 @@ export class SidebarComponent implements OnInit {
     this.actionError = '';
     let request: Observable<any>;
     switch (this.modalAction) {
-      case 'create-notebook': request = this.api.createNotebook({ userId: this.api.getMockUserId(), name: value, color: '#e55b3c', orderInUser: this.notebooks.length }); break;
-      case 'create-section': request = this.api.createSection({ notebookId: this.modalContext.notebookId, name: value, color: '#5d9c91', orderInParent: this.sectionsMap[this.modalContext.notebookId]?.length || 0 }); break;
-      case 'create-page': request = this.api.createPage({ sectionId: this.modalContext.section.sectionId, title: value, orderInSection: this.pagesMap[this.modalContext.section.sectionId]?.length || 0, lastModifiedByUserId: this.api.getMockUserId(), version: 1 }); break;
-      case 'edit-notebook': request = this.api.updateNotebook(this.modalContext.notebook.notebookId, { name: value }); break;
-      case 'edit-section': request = this.api.updateSection(this.modalContext.section.sectionId, { name: value }); break;
-      case 'edit-page': request = this.api.updatePage(this.modalContext.page.pageId, { title: value, lastModifiedByUserId: this.api.getMockUserId() }); break;
+      case 'create-notebook': request = this.api.createNotebook({ userId: this.api.getMockUserId(), name: value, color: this.modalColor, orderInUser: this.notebooks.length }); break;
+      case 'create-section': request = this.api.createSection({ notebookId: this.modalContext.notebookId, name: value, color: this.modalColor, orderInParent: this.sectionsMap[this.modalContext.notebookId]?.length || 0 }); break;
+      case 'create-page': request = this.api.createPage({ sectionId: this.modalContext.section.sectionId, title: value, color: this.modalColor, orderInSection: this.pagesMap[this.modalContext.section.sectionId]?.length || 0, lastModifiedByUserId: this.api.getMockUserId(), version: 1 }); break;
+      case 'edit-notebook': request = this.api.updateNotebook(this.modalContext.notebook.notebookId, { name: value, color: this.modalColor }); break;
+      case 'edit-section': request = this.api.updateSection(this.modalContext.section.sectionId, { name: value, color: this.modalColor }); break;
+      case 'edit-page': request = this.api.updatePage(this.modalContext.page.pageId, { title: value, color: this.modalColor, lastModifiedByUserId: this.api.getMockUserId() }); break;
     }
     request.pipe(finalize(() => this.isActionPending = false)).subscribe({
       next: (created: any) => {

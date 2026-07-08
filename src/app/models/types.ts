@@ -28,6 +28,7 @@ export interface Page {
   sectionId: string;
   parentPageId?: string | null;
   title: string;
+  color: string;
   isDeleted: boolean;
   orderInSection: number;
   lastModifiedByUserId: string;

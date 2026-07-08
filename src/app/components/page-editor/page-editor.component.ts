@@ -98,7 +98,7 @@ interface SavePayload { pageId: string; html: string; text: string; immediate?: 
         <input #imageInput class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp,image/gif" (change)="addImageFile($event)">
       </div>
 
-      <main class="document-scroll">
+      <main class="document-scroll" [style.--page-color]="page.color || state.selectedSection()?.color || '#e55b3c'">
         <article class="paper" [class.loading]="isLoading()">
           <div class="paper-rule"></div>
           <div class="title-area">
