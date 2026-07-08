@@ -454,7 +454,7 @@ export class SidebarComponent implements OnInit {
 
       const summary = backup.summary || {};
       const description = `${summary.notebooks ?? backup.notebooks.length} cuadernos, ${summary.sections ?? 0} secciones y ${summary.pages ?? 0} páginas`;
-      if (!confirm(`Se recuperarán ${description}.\n\nSe agregarán como copias nuevas y no se borrará información actual. ¿Continuar?`)) return;
+      if (!confirm(`Se recuperarán ${description}.\n\nEsto reemplazará todos los cuadernos, páginas y contenido actuales. Si algo falla, la operación completa se deshará. ¿Continuar?`)) return;
 
       this.isRestoring.set(true);
       this.exportStatus.set('Restaurando el respaldo…');
