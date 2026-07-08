@@ -69,8 +69,9 @@ type ModalAction = 'create-notebook' | 'create-section' | 'create-page' |
               <ng-container *ngFor="let section of filteredSections(notebook.notebookId); trackBy: trackSection">
                 <div class="section" draggable="true"
                   (dragstart)="onDragStart($event, section, 'section')"
-                  (dragover)="onDragOver($event)" (drop)="onDrop($event, section, 'section')">
-                  <div class="tree-row section-row" (click)="toggleSection(section.sectionId)">
+                  (dragend)="onDragEnd()"
+                  (dragover)="onDragOver($event, 'section:' + section.sectionId)" (drop)="onDrop($event, section, 'section')">
+                  <div class="tree-row section-row" [class.drop-target]="draggedType === 'page' && dragTargetKey === 'section:' + section.sectionId" (click)="toggleSection(section.sectionId)">
                     <button class="chevron" type="button" [attr.aria-expanded]="expandedSections[section.sectionId]">›</button>
                     <span class="section-line" [style.background]="section.color || '#5d9c91'"></span>
                     <span class="row-label">{{ section.name }}</span>
@@ -86,7 +87,9 @@ type ModalAction = 'create-notebook' | 'create-section' | 'create-page' |
                       [class.active]="state.selectedPage()?.pageId === page.pageId"
                       (click)="onSelectPage(page, section, notebook)"
                       draggable="true" (dragstart)="onDragStart($event, page, 'page')"
-                      (dragover)="onDragOver($event)" (drop)="onDrop($event, page, 'page')">
+                      (dragend)="onDragEnd()"
+                      [class.drop-target]="draggedType === 'page' && dragTargetKey === 'page:' + page.pageId"
+                      (dragover)="onDragOver($event, 'page:' + page.pageId)" (drop)="onDrop($event, page, 'page')">
                       <span class="page-glyph" [style.color]="page.color || section.color">▱</span>
                       <span>{{ page.title || 'Sin título' }}</span>
                       <i (click)="editPage($event, page)" title="Renombrar">···</i>
@@ -163,6 +166,7 @@ export class SidebarComponent implements OnInit {
 
   draggedItem: Notebook | Section | Page | null = null;
   draggedType: 'notebook' | 'section' | 'page' | null = null;
+  dragTargetKey = '';
 
   isModalOpen = false;
   modalTitle = '';
@@ -339,12 +343,44 @@ export class SidebarComponent implements OnInit {
   }
 
   onDragStart(event: DragEvent, item: Notebook | Section | Page, type: 'notebook' | 'section' | 'page') {
-    this.draggedItem = item; this.draggedType = type; event.dataTransfer!.effectAllowed = 'move'; event.stopPropagation();
+    this.draggedItem = item;
+    this.draggedType = type;
+    this.dragTargetKey = '';
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', type === 'page' ? (item as Page).pageId : type);
+    }
+    event.stopPropagation();
   }
-  onDragOver(event: DragEvent) { event.preventDefault(); }
+  onDragOver(event: DragEvent, targetKey = '') {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.dragTargetKey = targetKey;
+  }
+  onDragEnd() { this.draggedItem = null; this.draggedType = null; this.dragTargetKey = ''; }
   onDrop(event: DragEvent, target: any, type: 'notebook' | 'section' | 'page') {
     event.preventDefault(); event.stopPropagation();
-    if (!this.draggedItem || this.draggedItem === target || this.draggedType !== type) return;
+    this.dragTargetKey = '';
+    if (!this.draggedItem) return;
+
+    if (this.draggedType === 'page' && (type === 'page' || type === 'section')) {
+      const draggedPage = this.draggedItem as Page;
+      if (type === 'page' && draggedPage.pageId === (target as Page).pageId) { this.onDragEnd(); return; }
+      const targetSectionId = type === 'section' ? (target as Section).sectionId : (target as Page).sectionId;
+      const targetSection = this.findSection(targetSectionId);
+      if (!targetSection) { this.onDragEnd(); return; }
+      const targetPages = this.pagesMap[targetSectionId] || [];
+      let targetIndex = type === 'section' ? targetPages.length : targetPages.findIndex(page => page.pageId === (target as Page).pageId);
+      const sourcePages = this.pagesMap[draggedPage.sectionId] || [];
+      const sourceIndex = sourcePages.findIndex(page => page.pageId === draggedPage.pageId);
+      if (draggedPage.sectionId === targetSectionId && sourceIndex >= 0 && sourceIndex < targetIndex) targetIndex--;
+      this.persistPageMove(draggedPage, targetSection, Math.max(0, targetIndex));
+      this.onDragEnd();
+      return;
+    }
+
+    if (this.draggedItem === target || this.draggedType !== type) { this.onDragEnd(); return; }
     const list: any[] = type === 'notebook' ? this.notebooks : type === 'section' ? this.sectionsMap[target.notebookId] : this.pagesMap[target.sectionId];
     const id = type === 'notebook' ? 'notebookId' : type === 'section' ? 'sectionId' : 'pageId';
     const from = list.findIndex(item => item[id] === (this.draggedItem as any)[id]);
@@ -358,7 +394,24 @@ export class SidebarComponent implements OnInit {
           : this.api.updatePage(item.pageId, { orderInSection: index, lastModifiedByUserId: this.api.getMockUserId() }));
       forkJoin(updates).pipe(catchError(() => { this.loadNotebooksTree(); return of([]); })).subscribe();
     }
-    this.draggedItem = null; this.draggedType = null;
+    this.onDragEnd();
+  }
+
+  private persistPageMove(page: Page, targetSection: Section, targetIndex: number) {
+    this.api.movePage(page.pageId, targetSection.sectionId, targetIndex).subscribe({
+      next: movedPage => {
+        const notebook = this.notebooks.find(book => book.notebookId === targetSection.notebookId);
+        if (this.state.selectedPage()?.pageId === movedPage.pageId && notebook) {
+          this.state.selectPage(movedPage, targetSection, notebook);
+        }
+        this.loadNotebooksTree();
+      },
+      error: () => this.loadNotebooksTree()
+    });
+  }
+
+  private findSection(sectionId: string) {
+    return Object.values(this.sectionsMap).flat().find(section => section.sectionId === sectionId);
   }
 
   async exportBackup() {

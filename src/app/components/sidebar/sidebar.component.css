@@ -44,6 +44,8 @@
 .page-row > span:nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .page-row:hover { color: var(--ink); background: var(--teal-soft); }
 .page-row.active { color: var(--accent-dark); background: var(--accent-soft); font-weight: 700; }
+.tree-row.drop-target, .page-row.drop-target { position: relative; background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.page-row.drop-target::before { content:''; position:absolute; inset:-2px 8px auto; height:2px; border-radius:2px; background:var(--accent); }
 .page-glyph { font-size: 17px; transform: rotate(90deg); }
 .page-row i { display: none; padding: 2px; font-style: normal; }
 .page-row:hover i { display: block; }

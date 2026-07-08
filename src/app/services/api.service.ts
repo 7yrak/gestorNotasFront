@@ -124,6 +124,13 @@ export class ApiService {
     ).pipe(catchError(this.handleError));
   }
 
+  movePage(pageId: string, targetSectionId: string, targetIndex: number): Observable<Page> {
+    return this.http.post<Page>(`${this.baseUrl}/pages/${pageId}/move`, {
+      targetSectionId,
+      targetIndex
+    }).pipe(catchError(this.handleError));
+  }
+
 
   getTags(): Observable<Tag[]> {
     return this.http.get<Tag[]>(`${this.baseUrl}/tags`);
