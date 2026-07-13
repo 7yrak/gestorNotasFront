@@ -8,7 +8,7 @@ import { BackupImportResult, Notebook, Section, Page, PageContentBlock, Resource
   providedIn: 'root'
 })
 export class ApiService {
-  private readonly baseUrl = `${window.location.protocol}//${window.location.hostname}:8082/api`;
+  private readonly baseUrl = '/api';
   private readonly fallbackUserId = 'f1ce8d47-f208-4ab9-932b-8979840887a2';
 
   constructor(private http: HttpClient) {}
