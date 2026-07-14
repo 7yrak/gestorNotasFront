@@ -15,6 +15,8 @@
 .tool-group button:last-child { border-right: 0; }.tool-group button:hover { color: var(--ink); background: var(--teal-soft); }.tool-group button.active { color: var(--accent-dark); background: var(--accent-soft); }.tool-group button:disabled { opacity: .3; cursor: default; }
 .format-select select { height: 33px; padding: 0 28px 0 10px; border: 0; outline: 0; color: var(--ink-soft); background: var(--panel); font-size: 11px; font-weight: 700; }
 .font-family-select select { width: 104px; }.font-size-select select { width: 76px; }
+.list-style-select { width: 82px; height: 33px; padding: 0 20px 0 7px; border: 0; border-right: 1px solid var(--line); outline: 0; color: var(--ink-soft); background: var(--panel); font-size: 10px; font-weight: 700; }
+.ordered-style-select { width: 88px; }
 .color-tool { width: 34px; height: 33px; position: relative; display: grid; place-items: center; cursor: pointer; font: 700 13px Georgia,serif; }.color-tool span { border-bottom: 3px solid var(--accent); }.highlight-tool span { border-color: #e5b55b; }.color-tool input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .table-tools button { min-width: 46px; font: 700 10px/1 "Trebuchet MS",sans-serif; }.table-tools .danger-tool { color: var(--danger); }
 .visually-hidden { width: 1px; height: 1px; position: absolute; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
@@ -33,7 +35,23 @@
 :host ::ng-deep .note-editor p { margin: 0 0 1em; }
 :host ::ng-deep .note-editor h1, :host ::ng-deep .note-editor h2, :host ::ng-deep .note-editor h3 { margin: 1.4em 0 .55em; font-family: Georgia,serif; line-height: 1.16; letter-spacing: -.025em; }
 :host ::ng-deep .note-editor h1 { font-size: 32px; }:host ::ng-deep .note-editor h2 { font-size: 25px; }:host ::ng-deep .note-editor h3 { font-size: 20px; }
-:host ::ng-deep .note-editor ul, :host ::ng-deep .note-editor ol { padding-left: 24px; margin: 0 0 1em; }
+:host ::ng-deep .note-editor ul, :host ::ng-deep .note-editor ol { padding-left: 1.55rem; margin: 0 0 1em; list-style-position: outside; }
+:host ::ng-deep .note-editor ul { list-style-type: disc; }
+:host ::ng-deep .note-editor ol { list-style-type: decimal; }
+:host ::ng-deep .note-editor ul[data-list-style-type="circle"] { list-style-type: circle; }
+:host ::ng-deep .note-editor ul[data-list-style-type="square"] { list-style-type: square; }
+:host ::ng-deep .note-editor ol[type="A"] { list-style-type: upper-alpha; }
+:host ::ng-deep .note-editor ol[type="a"] { list-style-type: lower-alpha; }
+:host ::ng-deep .note-editor ol[type="I"] { list-style-type: upper-roman; }
+:host ::ng-deep .note-editor ol[type="i"] { list-style-type: lower-roman; }
+:host ::ng-deep .note-editor li { margin: .28em 0; padding-left: .18rem; }
+:host ::ng-deep .note-editor li::marker { color: var(--page-color, var(--accent)); font-weight: 800; }
+:host ::ng-deep .note-editor li p { margin: 0; }
+:host ::ng-deep .note-editor li > ul, :host ::ng-deep .note-editor li > ol { margin: .28em 0 .28em 1.05rem; }
+:host ::ng-deep .note-editor ul ul { list-style-type: circle; }
+:host ::ng-deep .note-editor ul ul ul { list-style-type: square; }
+:host ::ng-deep .note-editor ol ol { list-style-type: lower-alpha; }
+:host ::ng-deep .note-editor ol ol ol { list-style-type: lower-roman; }
 :host ::ng-deep .note-editor blockquote { margin: 1.5em 0; padding: 4px 0 4px 22px; border-left: 4px solid var(--accent); color: var(--ink-soft); font: italic 19px/1.55 Georgia,serif; }
 :host ::ng-deep .note-editor code { padding: 2px 5px; border-radius: 5px; color: var(--accent-dark); background: var(--accent-soft); font: 13px "Courier New",monospace; }
 :host ::ng-deep .note-editor pre { overflow: auto; margin: 1.5em 0; padding: 20px; border-radius: 12px 3px 12px 3px; color: #edf0e7; background: #143c43; }:host ::ng-deep .note-editor pre code { padding: 0; color: inherit; background: none; }

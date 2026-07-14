@@ -5,6 +5,7 @@ import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Highlight from '@tiptap/extension-highlight';
+import { BulletList, OrderedList } from '@tiptap/extension-list';
 import { TextStyleKit } from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -17,6 +18,41 @@ import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
 
 interface SavePayload { pageId: string; html: string; text: string; immediate?: boolean; }
+
+type BulletListStyle = 'disc' | 'circle' | 'square';
+type OrderedListStyle = '1' | 'A' | 'a' | 'I' | 'i';
+
+const bulletListStyles: Array<{ value: BulletListStyle; label: string }> = [
+  { value: 'disc', label: '• Disco' },
+  { value: 'circle', label: '○ Círculo' },
+  { value: 'square', label: '■ Cuadro' }
+];
+
+const orderedListStyles: Array<{ value: OrderedListStyle; label: string }> = [
+  { value: '1', label: '1, 2, 3' },
+  { value: 'A', label: 'A, B, C' },
+  { value: 'a', label: 'a, b, c' },
+  { value: 'I', label: 'I, II, III' },
+  { value: 'i', label: 'i, ii, iii' }
+];
+
+const StyledBulletList = BulletList.extend({
+  addAttributes() {
+    return {
+      listStyleType: {
+        default: 'disc',
+        parseHTML: element => {
+          const style = element.style.listStyleType || element.getAttribute('data-list-style-type');
+          return style === 'circle' || style === 'square' || style === 'disc' ? style : 'disc';
+        },
+        renderHTML: attributes => ({
+          'data-list-style-type': attributes['listStyleType'],
+          style: `list-style-type: ${attributes['listStyleType'] || 'disc'};`
+        })
+      }
+    };
+  }
+});
 
 @Component({
   selector: 'app-page-editor',
@@ -68,7 +104,13 @@ interface SavePayload { pageId: string; html: string; text: string; immediate?: 
           </div>
           <div class="tool-group">
             <button type="button" (click)="run('bulletList')" [class.active]="active('bulletList')" title="Lista con viñetas">•≡</button>
+            <select class="list-style-select" [value]="currentBulletListStyle" (change)="setBulletListStyle($any($event.target).value)" aria-label="Tipo de viñeta" title="Tipo de viñeta">
+              <option *ngFor="let option of bulletListStyles" [value]="option.value">{{ option.label }}</option>
+            </select>
             <button type="button" (click)="run('orderedList')" [class.active]="active('orderedList')" title="Lista numerada">1≡</button>
+            <select class="list-style-select ordered-style-select" [value]="currentOrderedListStyle" (change)="setOrderedListStyle($any($event.target).value)" aria-label="Tipo de numeración" title="Tipo de numeración">
+              <option *ngFor="let option of orderedListStyles" [value]="option.value">{{ option.label }}</option>
+            </select>
             <button type="button" (click)="run('taskList')" [class.active]="active('taskList')" title="Lista de tareas">☑</button>
           </div>
           <div class="tool-group">
@@ -156,6 +198,8 @@ export class PageEditorComponent implements OnDestroy {
   toolbarRevision = signal(0);
   words = 0;
   characters = 0;
+  readonly bulletListStyles = bulletListStyles;
+  readonly orderedListStyles = orderedListStyles;
   private requestedPageId = '';
   private readonly saveSubject = new Subject<SavePayload>();
   private readonly titleSubject = new Subject<{ pageId: string; title: string; revision: number }>();
@@ -208,7 +252,13 @@ export class PageEditorComponent implements OnDestroy {
     this.editor = new Editor({
       element,
       extensions: [
-        StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
+        StarterKit.configure({
+          bulletList: false,
+          orderedList: false,
+          link: { openOnClick: false, autolink: true }
+        }),
+        StyledBulletList.configure({ keepMarks: true, keepAttributes: true }),
+        OrderedList.configure({ keepMarks: true, keepAttributes: true }),
         Image.configure({
           allowBase64: true,
           inline: false,
@@ -228,6 +278,11 @@ export class PageEditorComponent implements OnDestroy {
           if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
             event.preventDefault();
             this.setLink();
+            return true;
+          }
+          if (event.key === 'Tab' && this.isInsideList()) {
+            event.preventDefault();
+            event.shiftKey ? this.outdent() : this.indent();
             return true;
           }
           if (event.key === 'Enter') this.saveNextUpdateImmediately = true;
@@ -266,6 +321,16 @@ export class PageEditorComponent implements OnDestroy {
   get currentFontSize() { this.toolbarRevision(); return this.editor?.getAttributes('textStyle')['fontSize'] || ''; }
   get currentColor() { this.toolbarRevision(); return this.editor?.getAttributes('textStyle')['color'] || '#143c43'; }
   get currentHighlight() { this.toolbarRevision(); return this.editor?.getAttributes('highlight')['color'] || '#f6d88b'; }
+  get currentBulletListStyle(): BulletListStyle {
+    this.toolbarRevision();
+    const value = this.editor?.getAttributes('bulletList')['listStyleType'];
+    return value === 'circle' || value === 'square' || value === 'disc' ? value : 'disc';
+  }
+  get currentOrderedListStyle(): OrderedListStyle {
+    this.toolbarRevision();
+    const value = this.editor?.getAttributes('orderedList')['type'];
+    return value === 'A' || value === 'a' || value === 'I' || value === 'i' || value === '1' ? value : '1';
+  }
 
   loadPage(pageId: string, force = false) {
     if (!this.editor) { this.requestedPageId = ''; return; }
@@ -334,6 +399,18 @@ export class PageEditorComponent implements OnDestroy {
   setAlign(alignment: 'left' | 'center' | 'right') { this.editor?.chain().focus().setTextAlign(alignment).run(); }
   setColor(color: string) { this.editor?.chain().focus().setColor(color).run(); }
   setHighlight(color: string) { this.editor?.chain().focus().toggleHighlight({ color }).run(); }
+  setBulletListStyle(style: BulletListStyle) {
+    if (!this.editor) return;
+    const chain = this.editor.chain().focus();
+    if (!this.active('bulletList')) chain.toggleBulletList();
+    chain.updateAttributes('bulletList', { listStyleType: style }).run();
+  }
+  setOrderedListStyle(type: OrderedListStyle) {
+    if (!this.editor) return;
+    const chain = this.editor.chain().focus();
+    if (!this.active('orderedList')) chain.toggleOrderedList();
+    chain.updateAttributes('orderedList', { type }).run();
+  }
   setFontFamily(fontFamily: string) {
     const chain = this.editor?.chain().focus();
     if (!chain) return;
@@ -345,6 +422,10 @@ export class PageEditorComponent implements OnDestroy {
     fontSize ? chain.setFontSize(fontSize).run() : chain.unsetFontSize().run();
   }
   clearFormatting() { this.editor?.chain().focus().unsetAllMarks().clearNodes().run(); }
+
+  private isInsideList() {
+    return this.active('listItem') || this.active('taskItem');
+  }
 
   get canIndent() {
     this.toolbarRevision();
