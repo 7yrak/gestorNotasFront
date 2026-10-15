@@ -12,8 +12,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { TableKit } from '@tiptap/extension-table';
-import { Subject, of, timer } from 'rxjs';
-import { catchError, concatMap, debounce, debounceTime, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
+import { finalize } from 'rxjs/operators';
+import { AutosaveQueue } from '../../services/autosave-queue';
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
 
@@ -201,51 +201,41 @@ export class PageEditorComponent implements OnDestroy {
   readonly bulletListStyles = bulletListStyles;
   readonly orderedListStyles = orderedListStyles;
   private requestedPageId = '';
-  private readonly saveSubject = new Subject<SavePayload>();
-  private readonly titleSubject = new Subject<{ pageId: string; title: string; revision: number }>();
-  private readonly destroy$ = new Subject<void>();
-  private titleRevision = 0;
+  private readonly contentDrafts = new Map<string, SavePayload>();
+  private readonly loadedPages = new Set<string>();
+  private readonly titleDrafts = new Map<string, string>();
+  private readonly saves = new AutosaveQueue(() => this.refreshSaveStatus());
   private saveNextUpdateImmediately = false;
 
   constructor(public state: StateService, private api: ApiService) {
     effect(() => {
       const pageId = this.state.selectedPage()?.pageId;
-      if (pageId && pageId !== this.requestedPageId) this.loadPage(pageId);
+      if (pageId !== this.requestedPageId) {
+        this.saves.flush();
+        if (pageId) this.loadPage(pageId);
+      }
+      this.refreshSaveStatus();
     });
+  }
 
-    this.saveSubject.pipe(
-      debounce(payload => timer(payload.immediate ? 0 : 400)),
-      concatMap(payload => {
-        this.saveStatus.set('saving');
-        return this.api.savePrimaryContent(payload.pageId, {
-          pageId: payload.pageId,
-          type: 'text',
-          contentData: JSON.stringify({ html: payload.html, text: payload.text, schemaVersion: 2, updatedFrom: 'web' }),
-          orderOnPage: 0,
-          lastModifiedByUserId: this.api.getMockUserId()
-        }).pipe(
-          catchError(() => { this.saveStatus.set('error'); return of(null); })
-        );
-      }),
-      takeUntil(this.destroy$)
-    ).subscribe(result => { if (result) this.saveStatus.set('saved'); });
+  private refreshSaveStatus() {
+    const pageId = this.state.selectedPage()?.pageId;
+    if (!pageId) return;
+    const status = this.saves.status(pageId);
+    this.saveStatus.set(status === 'idle' && this.loadedPages.has(pageId) ? 'saved' : status);
+  }
 
-    this.titleSubject.pipe(
-      debounceTime(500),
-      switchMap(payload => this.api.updatePage(payload.pageId, {
-        title: payload.title,
+  private queueContent(payload: SavePayload) {
+    this.contentDrafts.set(payload.pageId, payload);
+    this.saves.schedule(payload.pageId, 'content', () => new Promise<void>((resolve, reject) => {
+      this.api.savePrimaryContent(payload.pageId, {
+        pageId: payload.pageId,
+        type: 'text',
+        contentData: JSON.stringify({ html: payload.html, text: payload.text, schemaVersion: 2, updatedFrom: 'web' }),
+        orderOnPage: 0,
         lastModifiedByUserId: this.api.getMockUserId()
-      }).pipe(
-        map(updated => ({ updated, payload })),
-        catchError(() => of({ updated: null, payload }))
-      )),
-      takeUntil(this.destroy$)
-    ).subscribe(({ updated, payload }) => {
-      if (payload.revision !== this.titleRevision || this.state.selectedPage()?.pageId !== payload.pageId) return;
-      if (!updated) { this.saveStatus.set('error'); return; }
-      this.state.updatePage(updated);
-      this.saveStatus.set('saved');
-    });
+      }).subscribe({ next: () => resolve(), error: reject });
+    }), payload.immediate ? 0 : 400);
   }
 
   private initializeEditor(element: HTMLDivElement) {
@@ -296,7 +286,7 @@ export class PageEditorComponent implements OnDestroy {
           const immediate = this.saveNextUpdateImmediately;
           this.saveNextUpdateImmediately = false;
           this.saveStatus.set('saving');
-          this.saveSubject.next({ pageId, html: editor.getHTML(), text: editor.getText(), immediate });
+          this.queueContent({ pageId, html: editor.getHTML(), text: editor.getText(), immediate });
         }
       },
       onSelectionUpdate: () => this.refreshToolbar(),
@@ -355,8 +345,11 @@ export class PageEditorComponent implements OnDestroy {
           catch { html = block.contentData || ''; }
         }
         this.editor.commands.setContent(html, { emitUpdate: false });
+        const draft = this.contentDrafts.get(pageId);
+        if (draft) this.editor.commands.setContent(draft.html, { emitUpdate: false });
         this.updateMetrics();
-        this.saveStatus.set(block ? 'saved' : 'idle');
+        this.loadedPages.add(pageId);
+        this.refreshSaveStatus();
       },
       error: error => {
         if (this.requestedPageId === pageId) this.loadError.set(error.message || 'No se pudo abrir esta nota.');
@@ -493,13 +486,22 @@ export class PageEditorComponent implements OnDestroy {
     const draft = { ...page, title };
     this.state.updatePage(draft);
     const normalizedTitle = title.trim();
-    const revision = ++this.titleRevision;
-    if (!normalizedTitle) {
-      this.saveStatus.set('idle');
-      return;
-    }
-    this.saveStatus.set('saving');
-    this.titleSubject.next({ pageId: page.pageId, title: normalizedTitle, revision });
+    if (!normalizedTitle) return;
+    this.titleDrafts.set(page.pageId, normalizedTitle);
+    this.saves.schedule(page.pageId, 'title', () => new Promise<void>((resolve, reject) => {
+      this.api.updatePage(page.pageId, {
+        title: normalizedTitle,
+        lastModifiedByUserId: this.api.getMockUserId()
+      }).subscribe({
+        next: updated => {
+          if (this.titleDrafts.get(page.pageId) === normalizedTitle) {
+            this.state.updatePage(updated);
+          }
+          resolve();
+        },
+        error: reject
+      });
+    }), 500);
   }
 
   private safeUrl(raw: string, allowMail = true) {
@@ -516,6 +518,6 @@ export class PageEditorComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
-    this.destroy$.next(); this.destroy$.complete(); this.saveSubject.complete(); this.titleSubject.complete(); this.editor?.destroy();
+    this.saves.flush(); this.editor?.destroy();
   }
 }
