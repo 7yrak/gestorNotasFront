@@ -310,12 +310,12 @@ export class SidebarComponent implements OnInit {
     this.actionError = '';
     let request: Observable<any>;
     switch (this.modalAction) {
-      case 'create-notebook': request = this.api.createNotebook({ userId: this.api.getMockUserId(), name: value, color: this.modalColor, orderInUser: this.notebooks.length }); break;
+      case 'create-notebook': request = this.api.createNotebook({ userId: this.api.getCurrentUserId(), name: value, color: this.modalColor, orderInUser: this.notebooks.length }); break;
       case 'create-section': request = this.api.createSection({ notebookId: this.modalContext.notebookId, name: value, color: this.modalColor, orderInParent: this.sectionsMap[this.modalContext.notebookId]?.length || 0 }); break;
-      case 'create-page': request = this.api.createPage({ sectionId: this.modalContext.section.sectionId, title: value, color: this.modalColor, orderInSection: this.pagesMap[this.modalContext.section.sectionId]?.length || 0, lastModifiedByUserId: this.api.getMockUserId(), version: 1 }); break;
+      case 'create-page': request = this.api.createPage({ sectionId: this.modalContext.section.sectionId, title: value, color: this.modalColor, orderInSection: this.pagesMap[this.modalContext.section.sectionId]?.length || 0, lastModifiedByUserId: this.api.getCurrentUserId(), version: 1 }); break;
       case 'edit-notebook': request = this.api.updateNotebook(this.modalContext.notebook.notebookId, { name: value, color: this.modalColor }); break;
       case 'edit-section': request = this.api.updateSection(this.modalContext.section.sectionId, { name: value, color: this.modalColor }); break;
-      case 'edit-page': request = this.api.updatePage(this.modalContext.page.pageId, { title: value, color: this.modalColor, lastModifiedByUserId: this.api.getMockUserId() }); break;
+      case 'edit-page': request = this.api.updatePage(this.modalContext.page.pageId, { title: value, color: this.modalColor, lastModifiedByUserId: this.api.getCurrentUserId() }); break;
     }
     request.pipe(finalize(() => this.isActionPending = false)).subscribe({
       next: (created: any) => {
@@ -391,7 +391,7 @@ export class SidebarComponent implements OnInit {
         ? this.api.updateNotebook(item.notebookId, { orderInUser: index })
         : type === 'section'
           ? this.api.updateSection(item.sectionId, { orderInParent: index })
-          : this.api.updatePage(item.pageId, { orderInSection: index, lastModifiedByUserId: this.api.getMockUserId() }));
+          : this.api.updatePage(item.pageId, { orderInSection: index, lastModifiedByUserId: this.api.getCurrentUserId() }));
       forkJoin(updates).pipe(catchError(() => { this.loadNotebooksTree(); return of([]); })).subscribe();
     }
     this.onDragEnd();
@@ -420,7 +420,7 @@ export class SidebarComponent implements OnInit {
     this.exportStatus.set('Leyendo la biblioteca…');
 
     try {
-      const userId = this.api.getMockUserId();
+      const userId = this.api.getCurrentUserId();
       const notebooks = await firstValueFrom(this.api.getNotebooks());
       const [sectionLists, groupLists, allTags, allResources] = await Promise.all([
         Promise.all(notebooks.map(book => firstValueFrom(this.api.getSectionsByNotebook(book.notebookId)))),
