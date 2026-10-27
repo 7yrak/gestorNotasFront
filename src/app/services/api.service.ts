@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { KovaAuth } from './kova-auth';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -9,13 +10,15 @@ import { BackupImportResult, Notebook, Section, Page, PageContentBlock, Resource
 })
 export class ApiService {
   private readonly baseUrl = '/api';
-  private readonly fallbackUserId = 'f1ce8d47-f208-4ab9-932b-8979840887a2';
+  private readonly account=inject(KovaAuth);
 
   constructor(private http: HttpClient) {}
 
-  // ID del usuario de prueba persistido en tu BD
-  getMockUserId(): string {
-    return localStorage.getItem('gestor-notas-user-id') || this.fallbackUserId;
+  // Identidad heredada vinculada por el servidor a la cuenta KOVA.
+  getCurrentUserId(): string {
+    const id=this.account.legacyUserId();
+    if(!id)throw new Error('Inicia sesión en KOVA para acceder a tus notas.');
+    return id;
   }
 
   // Manejador central de errores para ver el detalle en consola (F12)
@@ -33,7 +36,7 @@ export class ApiService {
 
   // --- CRUD NOTEBOOKS ---
   getNotebooks(): Observable<Notebook[]> {
-    return this.http.get<Notebook[]>(`${this.baseUrl}/notebooks/user/${this.getMockUserId()}`);
+    return this.http.get<Notebook[]>(`${this.baseUrl}/notebooks/user/${this.getCurrentUserId()}`);
   }
 
   createNotebook(notebook: Partial<Notebook>): Observable<Notebook> {
@@ -142,7 +145,7 @@ export class ApiService {
 
   importBackup(backup: object): Observable<BackupImportResult> {
     return this.http.post<BackupImportResult>(
-      `${this.baseUrl}/backups/import/${this.getMockUserId()}`,
+      `${this.baseUrl}/backups/import/${this.getCurrentUserId()}`,
       backup
     ).pipe(catchError(this.handleError));
   }
