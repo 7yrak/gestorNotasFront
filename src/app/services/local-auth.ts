@@ -3,6 +3,8 @@ import { HttpBackend, HttpClient, HttpErrorResponse, HttpInterceptorFn, HttpPara
 import { Injectable, inject, signal } from '@angular/core';
 import { switchMap, throwError, catchError } from 'rxjs';
 
+import { isNotesApiRequest } from './api-routing';
+
 interface Csrf { headerName: string; token: string }
 interface Session { legacyUserId: string; username: string }
 
@@ -73,9 +75,7 @@ export class LocalAuth {
 export const localAuthInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(LocalAuth);
   const raw = new HttpClient(inject(HttpBackend));
-  const url = new URL(request.url, document.baseURI);
-  const api = new URL(auth.endpoint('api/'));
-  if (url.origin !== api.origin || !url.pathname.startsWith(api.pathname)) return next(request);
+  if (!isNotesApiRequest(request.url, document.baseURI)) return next(request);
   const response = ['GET', 'HEAD', 'OPTIONS'].includes(request.method) ? next(request) :
     raw.get<Csrf>(auth.endpoint('auth/csrf')).pipe(
       switchMap(csrf => next(request.clone({ setHeaders: { [csrf.headerName]: csrf.token } }))));

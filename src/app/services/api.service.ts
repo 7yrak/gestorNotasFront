@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { LocalAuth } from './local-auth';
+import { NOTES_API_PATH } from './api-routing';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -9,7 +10,7 @@ import { BackupImportResult, Notebook, Section, Page, PageContentBlock, Resource
   providedIn: 'root'
 })
 export class ApiService {
-  private readonly baseUrl = inject(LocalAuth).endpoint('api');
+  private readonly baseUrl = NOTES_API_PATH;
   private readonly account=inject(LocalAuth);
 
   constructor(private http: HttpClient) {}
