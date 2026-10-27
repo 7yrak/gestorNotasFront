@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { KovaAuth } from './kova-auth';
+import { LocalAuth } from './local-auth';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -9,15 +9,15 @@ import { BackupImportResult, Notebook, Section, Page, PageContentBlock, Resource
   providedIn: 'root'
 })
 export class ApiService {
-  private readonly baseUrl = '/api';
-  private readonly account=inject(KovaAuth);
+  private readonly baseUrl = inject(LocalAuth).endpoint('api');
+  private readonly account=inject(LocalAuth);
 
   constructor(private http: HttpClient) {}
 
-  // Identidad heredada vinculada por el servidor a la cuenta KOVA.
+  // Usuario propietario autenticado por el servidor.
   getCurrentUserId(): string {
     const id=this.account.legacyUserId();
-    if(!id)throw new Error('Inicia sesión en KOVA para acceder a tus notas.');
+    if(!id)throw new Error('Inicia sesión para acceder a tus notas.');
     return id;
   }
 

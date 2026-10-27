@@ -104,10 +104,15 @@ app-page-editor { display: block; flex: 1 1 auto; min-width: 0; height: 100%; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 
-/* KOVA account boundary. Notebook/editor components mount only after authorization. */
-.kova-account{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;padding:.5rem 1rem;background:#172d3a;color:#fff;font-size:.85rem}
-.kova-account span{margin-right:auto}.kova-account a,.kova-account button{color:inherit}.kova-account button{border:1px solid #8aa4af;border-radius:.5rem;padding:.3rem .7rem}
-.kova-account+.app-shell{height:calc(100dvh - 48px)}
-.kova-access{min-height:100dvh;display:grid;place-items:center;padding:1.25rem;background:#f6f4ef;color:#17304b}
-.kova-access section{width:min(100%,30rem);padding:2rem;border:1px solid #dfd5bc;border-radius:1.25rem;background:white;box-shadow:0 16px 50px #17304b12}
-.kova-access h1{font-size:2rem;margin:.75rem 0}.kova-access p{margin:1rem 0}.kova-access button{background:#17304b;color:white;padding:.8rem 1.2rem;border-radius:.6rem;display:block;margin:1rem 0}.kova-access a{text-decoration:underline}
+/* Local account. Notebook/editor components mount only after authentication. */
+.local-account{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;padding:.5rem 1rem;background:#172d3a;color:#fff;font-size:.85rem}
+.local-account span{margin-right:auto}.local-account a,.local-account button{color:inherit}.local-account button{border:1px solid #8aa4af;border-radius:.5rem;padding:.3rem .7rem}
+.local-account+.app-shell{height:calc(100dvh - 48px)}
+.local-access{min-height:100dvh;display:grid;place-items:center;padding:1.25rem;background:#f6f4ef;color:#17304b}
+.local-access section{width:min(100%,30rem);padding:2rem;border:1px solid #dfd5bc;border-radius:1.25rem;background:white;box-shadow:0 16px 50px #17304b12}
+.local-access h1{font-size:2rem;margin:.75rem 0}.local-access p{margin:1rem 0}.local-access button{background:#17304b;color:white;padding:.8rem 1.2rem;border-radius:.6rem;display:block;margin:1rem 0}.local-access a{text-decoration:underline}
+
+.local-access label{display:block;margin-top:1rem;font-weight:600}
+.local-access input{display:block;width:100%;margin-top:.4rem;padding:.7rem;border:1px solid #8aa4af;border-radius:.5rem;background:#fff;color:#17304b}
+.local-access input:focus-visible,.local-access button:focus-visible{outline:3px solid #36739c;outline-offset:2px}
+.local-access button:disabled,.local-account button:disabled{opacity:.6;cursor:wait}
