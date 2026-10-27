@@ -233,7 +233,7 @@ export class PageEditorComponent implements OnDestroy {
         type: 'text',
         contentData: JSON.stringify({ html: payload.html, text: payload.text, schemaVersion: 2, updatedFrom: 'web' }),
         orderOnPage: 0,
-        lastModifiedByUserId: this.api.getMockUserId()
+        lastModifiedByUserId: this.api.getCurrentUserId()
       }).subscribe({ next: () => resolve(), error: reject });
     }), payload.immediate ? 0 : 400);
   }
@@ -491,7 +491,7 @@ export class PageEditorComponent implements OnDestroy {
     this.saves.schedule(page.pageId, 'title', () => new Promise<void>((resolve, reject) => {
       this.api.updatePage(page.pageId, {
         title: normalizedTitle,
-        lastModifiedByUserId: this.api.getMockUserId()
+        lastModifiedByUserId: this.api.getCurrentUserId()
       }).subscribe({
         next: updated => {
           if (this.titleDrafts.get(page.pageId) === normalizedTitle) {
